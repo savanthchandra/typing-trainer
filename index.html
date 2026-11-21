@@ -83,23 +83,6 @@
     </section>
 
     <div class="workspace">
-      <section class="panel guide" aria-labelledby="guide-title">
-        <div class="guide-header">
-          <div>
-            <h2 id="guide-title">Finger guide</h2>
-            <p id="finger-name"></p>
-          </div>
-          <div id="next-keys" class="next-keys" role="group" aria-label="Next key"></div>
-        </div>
-        <div class="keyboard-stage" aria-hidden="true">
-          <div class="keyboard-base"></div>
-          <div id="keyboard"></div>
-          <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
-          <canvas id="hands" width="1000" height="426"></canvas>
-        </div>
-        <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
-      </section>
-
       <section class="panel editor" aria-label="Typing passage">
         <div class="editor-header">
           <div class="file-select">
@@ -127,7 +110,22 @@
         </div>
       </section>
 
-
+      <section class="panel guide" aria-labelledby="guide-title">
+        <div class="guide-header">
+          <div>
+            <h2 id="guide-title">Finger guide</h2>
+            <p id="finger-name"></p>
+          </div>
+          <div id="next-keys" class="next-keys" role="group" aria-label="Next key"></div>
+        </div>
+        <div class="keyboard-stage" aria-hidden="true">
+          <div class="keyboard-base"></div>
+          <div id="keyboard"></div>
+          <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
+          <canvas id="hands" width="1000" height="426"></canvas>
+        </div>
+        <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
+      </section>
 
       <section id="terminal" class="panel terminal" aria-labelledby="terminal-title">
         <div class="terminal-header">
