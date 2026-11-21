@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f111a">
+  <meta name="description" content="Practice touch typing with animated finger guidance, English passages, and commented Python programs.">
+  <title>Home Row — Typing Practice</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="passages.js"></script>
+  <script defer src="keyboard.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <span class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span> Home Row</span>
+      <span class="layout-label">US QWERTY</span>
+    </div>
+  </header>
+  <main class="shell">
+    <div class="intro">
+      <h1>Typing practice<span>.</span></h1>
+      <div class="modes" role="group" aria-label="Passage type">
+        <button type="button" data-mode="mixed" aria-pressed="true">Mixed</button>
+        <button type="button" data-mode="english" aria-pressed="false">English</button>
+        <button type="button" data-mode="python" aria-pressed="false">Python</button>
+      </div>
+    </div>
+    <section class="card exercise" aria-labelledby="passage-title">
+      <div class="exercise-header">
+        <div>
+          <span id="kind" class="kind">English</span>
+          <h2 id="passage-title">Morning at the market</h2>
+        </div>
+        <div class="exercise-actions">
+          <button type="button" id="restart" class="secondary">Restart</button>
+          <button type="button" id="next" class="primary">Next passage</button>
+        </div>
+      </div>
+      <p id="instructions" class="visually-hidden">Focus this passage and type the highlighted character using your physical keyboard. The guide names the recommended finger. Use Tab to leave the passage.</p>
+      <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing passage" aria-describedby="instructions"></div>
+      <div class="exercise-footer">
+        <div class="progress-group">
+          <progress id="progress" max="1" value="0" aria-label="Passage progress"></progress>
+          <span id="progress-label">0%</span>
+        </div>
+        <span id="accuracy" class="accuracy">Accuracy —</span>
+        <a id="lesson-link" class="lesson-link" target="_blank" rel="noopener noreferrer" hidden>Open lesson in Python Daily</a>
+      </div>
+    </section>
+    <section class="card guide" aria-labelledby="guide-title">
+      <div class="guide-header">
+        <div>
+          <h2 id="guide-title">Finger guide</h2>
+          <p id="finger-name" aria-live="polite" aria-atomic="true"></p>
+        </div>
+        <div id="next-keys" class="next-keys" aria-label="Next key"></div>
+      </div>
+      <div class="keyboard-stage" aria-hidden="true">
+        <div class="keyboard-base"></div>
+        <div id="keyboard"></div>
+        <canvas id="hands" width="1000" height="376"></canvas>
+      </div>
+      <p id="feedback" class="feedback" role="status">Type the highlighted character to begin.</p>
+    </section>
+    <noscript><p>Enable JavaScript to use the typing trainer.</p></noscript>
+  </main>
+</body>
+</html>
