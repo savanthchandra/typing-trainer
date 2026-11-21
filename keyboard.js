@@ -222,6 +222,7 @@ class HandDisplay {
     ];
     this.presses = new Map();
     this.expected = new Set();
+    this.expectedKeys = [];
     this.frame = null;
     this.lastFrame = null;
     new ResizeObserver(() => this.resize()).observe(canvas);
@@ -236,7 +237,8 @@ class HandDisplay {
   }
 
   guide(keys) {
-    this.expected = new Set(keys.map(key => key.finger));
+    this.expectedKeys = Array.isArray(keys) ? keys : [];
+    this.expected = new Set(this.expectedKeys.map(key => key.finger));
     this.schedule();
   }
 
@@ -255,6 +257,8 @@ class HandDisplay {
   clear() {
     for (const { key } of this.presses.values()) key.element.classList.remove("pressed", "wrong");
     this.presses.clear();
+    this.expectedKeys = [];
+    this.expected.clear();
     this.schedule();
   }
 
@@ -304,7 +308,15 @@ class HandDisplay {
       if (press && (!reach || reach.press.at <= press.at)) reach = { finger, press };
     }
 
+    const handExpected = new Map();
+    for (const expectedKey of this.expectedKeys) {
+      if (hand.fingers.some(finger => finger.id === expectedKey.finger)) {
+        handExpected.set(expectedKey.finger, expectedKey);
+      }
+    }
+
     const desiredPose = [0, 0, 0];
+    let isHoverReach = false;
     if (reach) {
       const [x, y] = keyContact(reach.press.key);
       const dx = x - reach.finger.rest[0];
@@ -322,15 +334,40 @@ class HandDisplay {
         desiredPose[0] += (x - knuckleX) * adjustment;
         desiredPose[1] += (y - knuckleY) * adjustment;
       }
+    } else if (handExpected.size > 0) {
+      // Pre-reach hover: bias palm and target finger gently toward next expected key.
+      const primaryKey = [...handExpected.values()].find(k => !k.code.startsWith("Shift")) || [...handExpected.values()][0];
+      const primaryFinger = hand.fingers.find(f => f.id === primaryKey.finger);
+      if (primaryFinger) {
+        isHoverReach = true;
+        const [x, y] = keyContact(primaryKey, true);
+        const dx = x - primaryFinger.rest[0];
+        const dy = y - primaryFinger.rest[1];
+        desiredPose[0] = dx * .68 * .25;
+        desiredPose[1] = dy * (dy < 0 ? .76 : .49) * .25;
+        desiredPose[2] = clamp(dx * .00052 * .25, -.02, .02);
+      }
     }
 
     const easing = duration => this.motion.matches ? 1 : 1 - Math.exp(-elapsed / duration);
-    let moving = moveToward(hand.pose, desiredPose, easing(reach ? 21 : 46), .0002);
+    let moving = moveToward(hand.pose, desiredPose, easing(reach ? 21 : isHoverReach ? 38 : 46), .0002);
     const digits = hand.fingers.map(finger => {
       const press = pressedFingers.get(finger.id);
-      const target = press
-        ? [...handLocalPoint(hand, keyContact(press.key)), pressingHeight]
-        : [...finger.home, restingHeight];
+      let target;
+      if (press) {
+        target = [...handLocalPoint(hand, keyContact(press.key)), pressingHeight];
+      } else if (handExpected.has(finger.id) && !reach) {
+        const expectedKey = handExpected.get(finger.id);
+        const keyLocal = handLocalPoint(hand, keyContact(expectedKey, true));
+        const hoverBlend = .42;
+        target = [
+          finger.home[0] + (keyLocal[0] - finger.home[0]) * hoverBlend,
+          finger.home[1] + (keyLocal[1] - finger.home[1]) * hoverBlend,
+          restingHeight - 3
+        ];
+      } else {
+        target = [...finger.home, restingHeight];
+      }
       if (moveToward(finger.contact, target, easing(press ? 17 : 33))) moving = true;
       const tone = press?.wrong ? -1 : press || this.expected.has(finger.id) ? 1 : 0;
       return { joints: projectFinger(finger), tone };

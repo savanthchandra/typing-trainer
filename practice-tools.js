@@ -67,23 +67,69 @@ class TypingSounds {
 }
 
 class PythonTerminal {
-  constructor(panel, example, typed) {
+  constructor(panel, example, typed, options = {}) {
     this.panel = panel;
+    this.split = options.split || document.getElementById("editor-split");
     this.output = panel.querySelector("#terminal-output");
     this.status = panel.querySelector("#terminal-status");
+    this.verifyBadge = options.verifyBadge || panel.querySelector("#terminal-verify");
+    this.runtimeStatus = options.runtimeStatus || document.getElementById("python-runtime-status");
     this.example = example;
     this.typed = typed;
     this.hideButton = panel.querySelector("#hide-python");
     this.stopButton = panel.querySelector("#stop-python");
+    this.copyButton = panel.querySelector("#copy-python");
+    this.clearButton = panel.querySelector("#clear-python");
     this.size = 0;
     this.busy = false;
     this.canRunTyped = false;
+    this.runtimeReady = false;
+    this.warmedUp = false;
+    this.nextRunId = 1;
+    this.activeRun = null;
+    this.passageKey = "";
+    this.lastExampleOutput = null;
+
     this.stopButton.addEventListener("click", () => this.stop("Execution stopped."));
     this.hideButton.addEventListener("click", () => {
-      this.panel.hidden = true;
+      this.setVisible(false);
       this.setAvailability(this.canRunTyped);
-      this.trigger?.focus();
+      this.trigger?.focus?.();
     });
+    this.copyButton?.addEventListener("click", () => this.copyOutput());
+    this.clearButton?.addEventListener("click", () => this.clearOutput());
+  }
+
+  setVisible(visible) {
+    this.panel.hidden = !visible;
+    this.split?.classList.toggle("has-terminal", visible);
+  }
+
+  setPassage(key) {
+    if (this.passageKey !== key) {
+      this.passageKey = key;
+      this.lastExampleOutput = null;
+      this.hideVerifyBadge();
+    }
+  }
+
+  setRuntimePill(text, state = "") {
+    if (!this.runtimeStatus) return;
+    this.runtimeStatus.textContent = text;
+    if (state) this.runtimeStatus.dataset.state = state;
+    else delete this.runtimeStatus.dataset.state;
+  }
+
+  warmup() {
+    if (this.warmedUp || this.runtimeReady) return;
+    this.warmedUp = true;
+    try {
+      if (!this.worker) this.connect();
+      this.setRuntimePill("Python: warming up…", "loading");
+      this.worker.postMessage({ type: "warmup" });
+    } catch {
+      this.setRuntimePill("");
+    }
   }
 
   setAvailability(canRunTyped) {
@@ -97,54 +143,155 @@ class PythonTerminal {
     this.typed.setAttribute("aria-expanded", open);
   }
 
+  hideVerifyBadge() {
+    if (!this.verifyBadge) return;
+    this.verifyBadge.hidden = true;
+    this.verifyBadge.textContent = "";
+    this.verifyBadge.className = "verify-badge";
+  }
+
+  showVerifyBadge(pass, text) {
+    if (!this.verifyBadge) return;
+    this.verifyBadge.hidden = false;
+    this.verifyBadge.textContent = text;
+    this.verifyBadge.className = "verify-badge " + (pass ? "verify-pass" : "verify-diff");
+  }
+
   reset() {
     if (this.busy) this.stop();
-    this.panel.hidden = true;
+    this.setVisible(false);
     this.trigger = null;
+    this.lastExampleOutput = null;
     this.output.textContent = "Run the example or type code to run your own version.";
     this.status.textContent = "";
+    this.hideVerifyBadge();
     this.setAvailability(false);
   }
 
-  run(source, trigger) {
+  clearOutput() {
+    if (this.busy) return;
+    this.output.textContent = "";
+    this.status.textContent = "Cleared.";
+    this.hideVerifyBadge();
+  }
+
+  copyOutput() {
+    const text = this.output.textContent || "";
+    if (!text) return;
+    navigator.clipboard?.writeText(text).then(() => {
+      if (!this.copyButton) return;
+      const original = this.copyButton.textContent;
+      this.copyButton.textContent = "Copied ✓";
+      setTimeout(() => {
+        if (this.copyButton) this.copyButton.textContent = original;
+      }, 1200);
+    }).catch(() => {});
+  }
+
+  run(source, trigger, options = {}) {
     if (this.busy || !source.trim()) return;
+    const { isTyped = false, expectedSource = null } = options;
     this.trigger = trigger;
-    this.panel.hidden = false;
+    this.setVisible(true);
     this.busy = true;
     this.size = 0;
     this.output.textContent = "";
-    this.status.textContent = "Loading Python…";
+    this.hideVerifyBadge();
+    this.status.textContent = this.runtimeReady ? "Running Python…" : "Loading Python…";
     this.setAvailability(this.canRunTyped);
-    this.panel.scrollIntoView({ block: "nearest" });
+
     try {
       if (!this.worker) this.connect();
-      this.worker.postMessage(source);
-      this.timeout = setTimeout(() => this.stop("Stopped after 30 seconds. Try running it again."), 30_000);
+      if (isTyped && this.lastExampleOutput === null && expectedSource && expectedSource.trim()) {
+        // Silently capture expected output first, then execute user's typed code.
+        this.startWorkerJob(expectedSource, {
+          silent: true,
+          onDone: (expectedOut, expectedErr) => {
+            if (!expectedErr) this.lastExampleOutput = expectedOut.trim();
+            this.startWorkerJob(source, { isTyped: true });
+          }
+        });
+      } else {
+        this.startWorkerJob(source, { isTyped });
+      }
     } catch {
       this.stop("Python could not start in this browser.");
     }
+  }
+
+  startWorkerJob(source, meta = {}) {
+    const id = this.nextRunId++;
+    this.activeRun = {
+      id,
+      buffer: "",
+      isTyped: Boolean(meta.isTyped),
+      silent: Boolean(meta.silent),
+      onDone: meta.onDone || null
+    };
+    this.worker.postMessage({ type: "run", source, id });
+    clearTimeout(this.timeout);
+    this.timeout = setTimeout(() => this.stop("Stopped after 30 seconds. Try running it again."), 30_000);
   }
 
   connect() {
     const worker = new Worker(window.homeRowPythonWorker || "python-worker.js", { type: "module" });
     this.worker = worker;
     worker.addEventListener("message", ({ data }) => {
-      if (this.worker !== worker || !this.busy) return;
+      if (this.worker !== worker) return;
+      if (data.type === "ready") {
+        this.runtimeReady = true;
+        this.setRuntimePill("Python ready ✓", "ready");
+        return;
+      }
+      if (data.type === "unavailable" && data.warmup) {
+        this.setRuntimePill("Python offline", "error");
+        return;
+      }
+      if (!this.busy || !this.activeRun) return;
+      if (data.id !== undefined && data.id !== null && data.id !== this.activeRun.id) return;
+
       if (data.type === "output") {
-        this.append(data.text);
+        this.activeRun.buffer += data.text;
+        if (!this.activeRun.silent) this.append(data.text);
       } else if (data.type === "running") {
-        this.status.textContent = "Running Python…";
+        if (!this.activeRun.silent) this.status.textContent = "Running Python…";
         clearTimeout(this.timeout);
         this.timeout = setTimeout(() => this.stop("Stopped after 10 seconds of execution."), 10_000);
       } else if (data.type === "complete") {
+        const finishedRun = this.activeRun;
+        this.activeRun = null;
+        if (finishedRun.onDone) {
+          finishedRun.onDone(finishedRun.buffer, data.error);
+          return;
+        }
+        const trimmedActual = finishedRun.buffer.trim();
         if (!this.size) this.output.textContent = "Finished with no output.";
+
+        if (!finishedRun.isTyped) {
+          if (!data.error) this.lastExampleOutput = trimmedActual;
+          this.showVerifyBadge(!data.error, data.error ? "⚠ Error" : "Example output");
+        } else if (this.lastExampleOutput !== null) {
+          if (!data.error && trimmedActual === this.lastExampleOutput) {
+            this.showVerifyBadge(true, "✓ Matches example");
+          } else {
+            this.showVerifyBadge(false, "⚠ Differs from example");
+            if (this.lastExampleOutput) {
+              this.append("\n--- Expected output ---\n" + this.lastExampleOutput + "\n");
+            }
+          }
+        }
+
         this.finish(data.error ? "Python reported an error." : "Finished.");
       } else if (data.type === "unavailable") {
+        this.setRuntimePill("Python offline", "error");
         this.stop("Python could not load. Check your connection and try again.");
       }
     });
     worker.addEventListener("error", () => {
-      if (this.worker === worker) this.stop("Python could not load. Check your connection and try again.");
+      if (this.worker === worker) {
+        this.setRuntimePill("");
+        if (this.busy) this.stop("Python could not load. Check your connection and try again.");
+      }
     });
   }
 
@@ -161,6 +308,7 @@ class PythonTerminal {
   finish(message) {
     clearTimeout(this.timeout);
     this.busy = false;
+    this.activeRun = null;
     this.status.textContent = message;
     this.setAvailability(this.canRunTyped);
   }
@@ -168,6 +316,9 @@ class PythonTerminal {
   stop(message = "") {
     this.worker?.terminate();
     this.worker = null;
+    this.runtimeReady = false;
+    this.warmedUp = false;
+    this.activeRun = null;
     if (message && !this.size) this.output.textContent = message;
     this.finish(message);
   }

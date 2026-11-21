@@ -4,22 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#11121a">
-  <meta name="description" content="Practice typing English or Python in 1-, 3-, or 5-minute tests with live metrics and illustrated hand guidance.">
+  <meta name="description" content="Practice typing English or Python with live WPM analytics, in-browser Python execution, and dynamic hand guidance.">
   <title>Home Row — Typing Practice</title>
-  <link rel="stylesheet" href="style.css?v=7">
-  <script defer src="passages.js?v=6"></script>
+  <link rel="stylesheet" href="style.css?v=8">
+  <script defer src="passages.js?v=8"></script>
   <script defer src="hand-art.js"></script>
-  <script defer src="keyboard.js?v=4"></script>
-  <script defer src="practice-tools.js?v=7"></script>
-  <script defer src="app.js?v=7"></script>
+  <script defer src="keyboard.js?v=8"></script>
+  <script defer src="practice-tools.js?v=8"></script>
+  <script defer src="app.js?v=8"></script>
 </head>
 <body>
   <header class="topbar">
     <div class="shell topbar-inner">
       <span class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span> Home Row</span>
-      <span class="layout-label">US QWERTY</span>
+      <div class="topbar-right">
+        <span id="streak-pill" class="streak-pill" title="Daily streak and all-time best WPM">1d streak · Best 0 WPM</span>
+        <button type="button" id="open-palette" class="topbar-btn" title="Quick passage and action switcher (Cmd/Ctrl+K)"><kbd>⌘K</kbd> Switch</button>
+        <span class="layout-label">US QWERTY</span>
+      </div>
     </div>
   </header>
+
   <main class="shell">
     <div class="heading">
       <div>
@@ -28,9 +33,10 @@
       <div class="actions">
         <button type="button" id="restart" class="secondary">Reset</button>
         <button type="button" id="next" class="primary">Next passage</button>
+        <button type="button" id="open-custom" class="secondary">+ Custom</button>
+        <button type="button" id="toggle-zen" class="secondary" aria-pressed="false" title="Dim surrounding chrome while practicing">Focus</button>
       </div>
     </div>
-
 
     <div class="settings" aria-label="Practice settings">
       <div class="setting-group" role="group" aria-label="Practice mode">
@@ -42,14 +48,22 @@
         <button type="button" data-duration="1" aria-pressed="true">1 min</button>
         <button type="button" data-duration="3" aria-pressed="false">3 min</button>
         <button type="button" data-duration="5" aria-pressed="false">5 min</button>
+        <button type="button" data-duration="0" aria-pressed="false">Full file</button>
       </div>
       <div id="level-control" class="setting-select">
-        <label for="difficulty">Python level</label>
+        <label id="difficulty-label" for="difficulty">Python level</label>
         <select id="difficulty">
           <option value="easy">Easy</option>
           <option value="medium" selected>Medium</option>
           <option value="hard">Hard</option>
         </select>
+      </div>
+      <div id="python-toggles" class="setting-group" role="group" aria-label="Python editor options">
+        <button type="button" id="toggle-auto-indent" aria-pressed="false" title="Auto-fill leading indentation on new lines">Auto-indent</button>
+        <button type="button" id="toggle-skip-setup" aria-pressed="false" title="Start cursor directly on executable logic">Skip setup</button>
+      </div>
+      <div class="setting-group" role="group" aria-label="Caret style">
+        <button type="button" id="toggle-caret" aria-pressed="false" title="Toggle Block vs Vertical Bar caret">Bar caret</button>
       </div>
       <div class="setting-select sound-control">
         <label for="click-sound">Sound</label>
@@ -89,6 +103,7 @@
             <span id="passage-kind" class="file-icon" aria-hidden="true">py</span>
             <label class="visually-hidden" for="passage-choice">Passage</label>
             <select id="passage-choice"></select>
+            <span id="passage-pb" class="pb-badge" title="Personal best for this passage">No PB yet</span>
           </div>
           <div class="editor-controls">
             <span id="line-count" class="line-count"></span>
@@ -98,20 +113,36 @@
             </div>
           </div>
         </div>
-        <p id="instructions" class="visually-hidden">Type the highlighted character to start the timer. Enter inserts a line break and Backspace moves back one character. In Python, Tab fills leading indentation. Press Escape to move focus out of the passage.</p>
-        <div class="editor-surface">
-          <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing editor" aria-describedby="instructions"></div>
-          <div id="results" class="results" hidden>
-            <div class="result-card">
-              <h2 id="result-title">Time is up</h2>
-              <p id="result-summary"></p>
-              <button type="button" id="retry" class="primary">Try again</button>
+        <p id="instructions" class="visually-hidden">Type the highlighted character to start the timer. Enter inserts a line break and Backspace moves back one character. In Python, Tab fills leading indentation. Press Tab then Enter to restart, Escape to pause, or Cmd/Ctrl+K to switch passages.</p>
+        <div id="editor-split" class="editor-split">
+          <div class="editor-surface">
+            <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing editor" aria-describedby="instructions"></div>
+            <div id="focus-overlay" class="focus-overlay" hidden>
+              <button type="button" id="resume-focus" class="focus-badge">Click or press any key to focus</button>
             </div>
           </div>
+          <section id="terminal" class="terminal" aria-labelledby="terminal-title" hidden>
+            <div class="terminal-header">
+              <div class="terminal-title-group">
+                <h2 id="terminal-title">Output</h2>
+                <span id="terminal-verify" class="verify-badge" hidden></span>
+              </div>
+              <div class="terminal-actions">
+                <button type="button" id="copy-python" class="secondary">Copy</button>
+                <button type="button" id="clear-python" class="secondary">Clear</button>
+                <button type="button" id="hide-python" class="secondary">Hide</button>
+                <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
+              </div>
+            </div>
+            <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
+            <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
+          </section>
         </div>
         <div class="editor-footer">
           <span id="cursor-position">Ln 1, Col 1</span>
-          <span id="progress" aria-label="Passage progress">0% typed</span>
+          <span id="progress" aria-label="Passage progress">Type to start</span>
+          <span id="tab-hint" class="tab-hint" hidden>Tab armed — press Enter to restart</span>
+          <span id="python-runtime-status" class="runtime-status" hidden></span>
           <a id="lesson-link" target="_blank" rel="noopener noreferrer">Open lesson in Python Daily</a>
         </div>
       </section>
@@ -130,23 +161,100 @@
           <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
           <canvas id="hands" width="1000" height="426"></canvas>
         </div>
-        <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
-      </section>
-
-      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title" hidden>
-        <div class="terminal-header">
-          <h2 id="terminal-title">Python terminal</h2>
-          <div class="terminal-actions">
-            <button type="button" id="hide-python" class="secondary">Hide</button>
-            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
-          </div>
-        </div>
-        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
-        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
+        <p class="key-help">
+          <kbd>Enter</kbd> Line break
+          <span id="indent-help"><kbd>Tab</kbd> Indent</span>
+          <kbd>Backspace</kbd> Correct
+          <span class="help-sep">·</span>
+          <kbd>Tab</kbd>+<kbd>Enter</kbd> Restart
+          <span class="help-sep">·</span>
+          <kbd>Esc</kbd> Pause
+          <span class="help-sep">·</span>
+          <kbd>⌘K</kbd> Switch
+        </p>
       </section>
     </div>
+
     <p id="session-status" class="visually-hidden" role="status" aria-atomic="true"></p>
     <noscript><p>Enable JavaScript to use the typing trainer.</p></noscript>
   </main>
+
+  <!-- Post-Test Results Modal -->
+  <div id="results" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="result-title" hidden>
+    <div class="result-card">
+      <div class="result-head">
+        <div>
+          <h2 id="result-title">Time is up</h2>
+          <span id="result-pb-badge" class="pb-pill" hidden>★ New Personal Best!</span>
+        </div>
+        <button type="button" id="result-close" class="icon-btn" aria-label="Close results to inspect keyboard heatmap" title="Close (view keyboard heatmap)">✕</button>
+      </div>
+      <p id="result-summary" class="visually-hidden"></p>
+      <div class="result-kpis">
+        <div class="kpi"><span class="kpi-label">Net WPM</span><strong id="res-wpm">0</strong></div>
+        <div class="kpi"><span class="kpi-label">Raw WPM</span><strong id="res-raw-wpm">0</strong></div>
+        <div class="kpi"><span class="kpi-label">Accuracy</span><strong id="res-accuracy">—</strong></div>
+        <div class="kpi"><span class="kpi-label">Chars (ok / fix / err)</span><strong id="res-chars">0 / 0 / 0</strong></div>
+      </div>
+      <div class="result-chart-wrap">
+        <div class="result-subhead">
+          <span>Speed &amp; error timeline</span>
+          <span class="chart-legend"><i class="dot-wpm"></i> WPM <i class="dot-err"></i> Misses</span>
+        </div>
+        <svg id="result-chart" viewBox="0 0 480 96" aria-label="WPM and error timeline chart"></svg>
+      </div>
+      <div id="missed-keys-list" class="missed-keys-list"></div>
+      <div class="result-actions">
+        <button type="button" id="retry" class="primary">Try again</button>
+        <button type="button" id="result-next" class="secondary">Next passage</button>
+        <button type="button" id="practice-missed" class="secondary" hidden>Practice missed keys (30s)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Command Palette Modal (Cmd/Ctrl + K) -->
+  <div id="command-palette" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Quick passage and command switcher" hidden>
+    <div class="palette-card">
+      <div class="palette-input-wrap">
+        <input id="palette-search" type="search" placeholder="Search passages, modes, durations, or settings…" autocomplete="off">
+        <kbd>Esc</kbd>
+      </div>
+      <div id="palette-list" class="palette-list" role="listbox" aria-label="Matching commands and passages"></div>
+    </div>
+  </div>
+
+  <!-- Custom Code / Text Modal -->
+  <div id="custom-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="custom-modal-title" hidden>
+    <div class="custom-card">
+      <div class="result-head">
+        <h2 id="custom-modal-title">Add custom code or text</h2>
+        <button type="button" id="custom-close" class="icon-btn" aria-label="Close custom passage dialog">✕</button>
+      </div>
+      <div class="custom-fields">
+        <div class="custom-row">
+          <label class="field-group">
+            <span>Title</span>
+            <input id="custom-title" type="text" placeholder="my_snippet.py or Study notes">
+          </label>
+          <label class="field-group field-kind">
+            <span>Mode</span>
+            <select id="custom-kind">
+              <option value="python">Python</option>
+              <option value="english">English</option>
+            </select>
+          </label>
+        </div>
+        <label class="field-group">
+          <span>Passage or Python code</span>
+          <textarea id="custom-text" rows="8" placeholder="Paste any Python script or English text to practice typing (and run Python directly in the browser)..."></textarea>
+        </label>
+        <p id="custom-error" class="custom-error" hidden></p>
+      </div>
+      <div class="result-actions">
+        <button type="button" id="custom-cancel" class="secondary">Cancel</button>
+        <button type="button" id="custom-save" class="primary">Save &amp; Practice</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
