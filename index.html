@@ -110,6 +110,19 @@
         </div>
       </section>
 
+      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title">
+        <div class="terminal-header">
+          <h2 id="terminal-title">Python terminal</h2>
+          <div class="terminal-actions">
+            <button type="button" id="run-example" class="secondary">Run example</button>
+            <button type="button" id="run-typed" class="primary" disabled>Run my code</button>
+            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
+          </div>
+        </div>
+        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
+        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
+      </section>
+
       <section class="panel guide" aria-labelledby="guide-title">
         <div class="guide-header">
           <div>
@@ -125,19 +138,6 @@
           <canvas id="hands" width="1000" height="426"></canvas>
         </div>
         <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
-      </section>
-
-      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title">
-        <div class="terminal-header">
-          <h2 id="terminal-title">Python terminal</h2>
-          <div class="terminal-actions">
-            <button type="button" id="run-example" class="secondary">Run example</button>
-            <button type="button" id="run-typed" class="primary" disabled>Run my code</button>
-            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
-          </div>
-        </div>
-        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
-        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
       </section>
     </div>
     <p id="session-status" class="visually-hidden" role="status" aria-atomic="true"></p>
