@@ -8,7 +8,8 @@
   <title>Home Row — Typing Practice</title>
   <link rel="stylesheet" href="style.css?v=3">
   <script defer src="passages.js"></script>
-  <script defer src="keyboard.js?v=3"></script>
+  <script defer src="hand-art.js"></script>
+  <script defer src="keyboard.js?v=4"></script>
   <script defer src="app.js?v=3"></script>
 </head>
 <body>
@@ -60,6 +61,7 @@
       <div class="keyboard-stage" aria-hidden="true">
         <div class="keyboard-base"></div>
         <div id="keyboard"></div>
+        <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
         <canvas id="hands" width="1000" height="426"></canvas>
       </div>
       <p id="feedback" class="feedback" role="status">Type the highlighted character to begin.</p>
