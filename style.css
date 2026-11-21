@@ -66,7 +66,7 @@ button.primary:hover { background: #d9ceff; }
 .panel { min-width: 0; border: 1px solid var(--border); border-radius: 11px; background: var(--panel); }
 .editor { overflow: hidden; }
 .editor-header, .editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 7px 12px; }
-.editor-header { border-bottom: 1px solid var(--border); min-height: 46px; }
+.editor-header { border-bottom: 1px solid var(--border); min-height: 46px; flex-wrap: wrap; }
 .file-select { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .file-icon { color: #a8e8d5; font: 700 .81rem var(--mono); }
 .file-select select {
@@ -74,6 +74,7 @@ button.primary:hover { background: #d9ceff; }
   border: 1px solid transparent; border-radius: 5px; background: #242636; color: #eeeafa; font: 570 .91rem var(--mono);
 }
 .file-select select:hover { border-color: #535771; }
+.editor-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .line-count { flex: none; color: var(--muted); font: .75rem var(--mono); }
 .editor-surface { position: relative; background: var(--editor); }
 .passage {

@@ -67,17 +67,23 @@ class TypingSounds {
 }
 
 class PythonTerminal {
-  constructor(panel) {
+  constructor(panel, example, typed) {
     this.panel = panel;
     this.output = panel.querySelector("#terminal-output");
     this.status = panel.querySelector("#terminal-status");
-    this.example = panel.querySelector("#run-example");
-    this.typed = panel.querySelector("#run-typed");
+    this.example = example;
+    this.typed = typed;
+    this.hideButton = panel.querySelector("#hide-python");
     this.stopButton = panel.querySelector("#stop-python");
     this.size = 0;
     this.busy = false;
     this.canRunTyped = false;
     this.stopButton.addEventListener("click", () => this.stop("Execution stopped."));
+    this.hideButton.addEventListener("click", () => {
+      this.panel.hidden = true;
+      this.setAvailability(this.canRunTyped);
+      this.trigger?.focus();
+    });
   }
 
   setAvailability(canRunTyped) {
@@ -85,22 +91,31 @@ class PythonTerminal {
     this.example.disabled = this.busy;
     this.typed.disabled = this.busy || !canRunTyped;
     this.stopButton.hidden = !this.busy;
+    this.hideButton.hidden = this.busy;
+    const open = String(!this.panel.hidden);
+    this.example.setAttribute("aria-expanded", open);
+    this.typed.setAttribute("aria-expanded", open);
   }
 
   reset() {
     if (this.busy) this.stop();
+    this.panel.hidden = true;
+    this.trigger = null;
     this.output.textContent = "Run the example or type code to run your own version.";
     this.status.textContent = "";
     this.setAvailability(false);
   }
 
-  run(source) {
+  run(source, trigger) {
     if (this.busy || !source.trim()) return;
+    this.trigger = trigger;
+    this.panel.hidden = false;
     this.busy = true;
     this.size = 0;
     this.output.textContent = "";
     this.status.textContent = "Loading Python…";
     this.setAvailability(this.canRunTyped);
+    this.panel.scrollIntoView({ block: "nearest" });
     try {
       if (!this.worker) this.connect();
       this.worker.postMessage(source);

@@ -7,7 +7,7 @@ const view = Object.fromEntries([
   "restart", "next", "retry", "passage-choice", "line-count", "cursor-position", "time",
   "time-fill", "timer-card", "wpm", "cpm", "accuracy", "results", "result-title",
   "result-summary", "session-status", "difficulty", "level-control", "passage-kind",
-  "terminal", "run-example", "run-typed", "click-sound", "preview-sound", "indent-help"
+  "terminal", "run-example", "run-typed", "click-sound", "preview-sound", "indent-help", "python-run-controls"
 ].map(id => [id, document.getElementById(id)]));
 
 const pythonKeywords = new Set((
@@ -19,7 +19,7 @@ const tokenPattern = /(?<comment>#[^\n]*)|(?<string>(?:[rRbBuUfF]{1,2})?(?:"""[\
 addKeys(view.keyboard);
 const hands = new HandDisplay(view.hands);
 const sounds = new TypingSounds(view["click-sound"], view["preview-sound"]);
-const terminal = new PythonTerminal(view.terminal);
+const terminal = new PythonTerminal(view.terminal, view["run-example"], view["run-typed"]);
 const modeButtons = [...document.querySelectorAll("[data-mode]")];
 const durationButtons = [...document.querySelectorAll("[data-duration]")];
 let mode = "python";
@@ -153,7 +153,7 @@ function loadPassage(focus = false) {
   else view["lesson-link"].removeAttribute("href");
   view["time-fill"].max = duration / 1000;
   terminal.reset();
-  view.terminal.hidden = !isPython;
+  view["python-run-controls"].hidden = !isPython;
   view.results.hidden = true;
   view["session-status"].textContent = "Ready";
   activeSlot = null;
@@ -427,8 +427,11 @@ view.next.addEventListener("click", () => {
   passageIndex = mode === "random" ? chooseRandom(passage) : (passageIndex + 1) % options.length;
   loadPassage(true);
 });
-view["run-example"].addEventListener("click", () => terminal.run(passage.text));
-view["run-typed"].addEventListener("click", () => terminal.run(slots.slice(0, run.cursor).map(slot => slot.entered).join("")));
+view["run-example"].addEventListener("click", event => terminal.run(passage.text, event.currentTarget));
+view["run-typed"].addEventListener("click", event => {
+  const source = slots.slice(0, run.cursor).map(slot => slot.entered).join("");
+  terminal.run(source, event.currentTarget);
+});
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", event => hands.up(event.code));
 document.addEventListener("visibilitychange", tick);

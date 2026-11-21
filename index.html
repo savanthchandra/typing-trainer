@@ -6,12 +6,12 @@
   <meta name="theme-color" content="#11121a">
   <meta name="description" content="Practice typing English or Python in 1-, 3-, or 5-minute tests with live metrics and illustrated hand guidance.">
   <title>Home Row — Typing Practice</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
   <script defer src="passages.js?v=6"></script>
   <script defer src="hand-art.js"></script>
   <script defer src="keyboard.js?v=4"></script>
-  <script defer src="practice-tools.js"></script>
-  <script defer src="app.js?v=6"></script>
+  <script defer src="practice-tools.js?v=7"></script>
+  <script defer src="app.js?v=7"></script>
 </head>
 <body>
   <header class="topbar">
@@ -90,7 +90,13 @@
             <label class="visually-hidden" for="passage-choice">Passage</label>
             <select id="passage-choice"></select>
           </div>
-          <span id="line-count" class="line-count"></span>
+          <div class="editor-controls">
+            <span id="line-count" class="line-count"></span>
+            <div id="python-run-controls" class="terminal-actions">
+              <button type="button" id="run-example" class="secondary" aria-controls="terminal" aria-expanded="false">Run example</button>
+              <button type="button" id="run-typed" class="primary" aria-controls="terminal" aria-expanded="false" disabled>Run my code</button>
+            </div>
+          </div>
         </div>
         <p id="instructions" class="visually-hidden">Type the highlighted character to start the timer. Enter inserts a line break and Backspace moves back one character. In Python, Tab fills leading indentation. Press Escape to move focus out of the passage.</p>
         <div class="editor-surface">
@@ -110,19 +116,6 @@
         </div>
       </section>
 
-      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title">
-        <div class="terminal-header">
-          <h2 id="terminal-title">Python terminal</h2>
-          <div class="terminal-actions">
-            <button type="button" id="run-example" class="secondary">Run example</button>
-            <button type="button" id="run-typed" class="primary" disabled>Run my code</button>
-            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
-          </div>
-        </div>
-        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
-        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
-      </section>
-
       <section class="panel guide" aria-labelledby="guide-title">
         <div class="guide-header">
           <div>
@@ -138,6 +131,18 @@
           <canvas id="hands" width="1000" height="426"></canvas>
         </div>
         <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
+      </section>
+
+      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title" hidden>
+        <div class="terminal-header">
+          <h2 id="terminal-title">Python terminal</h2>
+          <div class="terminal-actions">
+            <button type="button" id="hide-python" class="secondary">Hide</button>
+            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
+          </div>
+        </div>
+        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
+        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
       </section>
     </div>
     <p id="session-status" class="visually-hidden" role="status" aria-atomic="true"></p>
