@@ -8,7 +8,7 @@ const PREFS_KEY = "home-row-prefs-v1";
 
 const view = Object.fromEntries([
   "passage", "progress", "lesson-link", "keyboard", "hands", "finger-name", "next-keys",
-  "restart", "next", "retry", "result-next", "result-close", "practice-missed",
+  "restart", "finish-run", "next", "retry", "result-next", "result-close", "practice-missed",
   "passage-choice", "passage-pb", "line-count", "cursor-position", "time", "time-label",
   "time-fill", "timer-card", "wpm", "cpm", "accuracy", "results", "result-title",
   "result-pb-badge", "result-summary", "res-wpm", "res-raw-wpm", "res-accuracy", "res-chars",
@@ -451,8 +451,9 @@ function loadPassage(focus = false) {
   if (isPython && passage.chapter) view["lesson-link"].href = lessonBaseUrl + passage.chapter;
   else view["lesson-link"].removeAttribute("href");
 
-  view["time-label"].textContent = duration === 0 ? "Elapsed" : "Time left";
+  view["time-label"].textContent = duration === 0 ? "Unlimited" : "Time left";
   view["time-fill"].max = duration === 0 ? 100 : duration / 1000;
+  view["finish-run"].hidden = true;
   terminal.reset();
   terminal.setPassage(passage.file);
   view["python-run-controls"].hidden = !isPython;
@@ -657,7 +658,8 @@ function startRun(now) {
   run.started = now;
   run.lastSampleAt = 0;
   document.body.classList.add("is-typing");
-  const label = duration === 0 ? "Full-file stopwatch started" : (duration / 60_000) + "-minute test started";
+  if (duration === 0) view["finish-run"].hidden = false;
+  const label = duration === 0 ? "Unlimited mode started" : (duration / 60_000) + "-minute test started";
   view["session-status"].textContent = label;
   ticker = setInterval(tick, 125);
 }
@@ -795,6 +797,7 @@ function finishRun(title, now) {
   ticker = undefined;
   document.body.classList.remove("is-typing");
   view["focus-overlay"].hidden = true;
+  view["finish-run"].hidden = true;
   hands.clear();
   updateCursor();
 
@@ -929,7 +932,7 @@ function buildPaletteCandidates(query) {
     { type: "duration", duration: 1, tag: "TIME", name: "Duration: 1 minute", meta: "60s sprint" },
     { type: "duration", duration: 3, tag: "TIME", name: "Duration: 3 minutes", meta: "180s endurance" },
     { type: "duration", duration: 5, tag: "TIME", name: "Duration: 5 minutes", meta: "300s deep practice" },
-    { type: "duration", duration: 0, tag: "TIME", name: "Duration: Full file (stopwatch)", meta: "Finish entire passage" },
+    { type: "duration", duration: 0, tag: "TIME", name: "Duration: Unlimited (no time limit)", meta: "Type at your own pace" },
     { type: "toggle", key: "autoIndent", tag: "OPT", name: `Auto-indent (${autoIndent ? "ON" : "OFF"})`, meta: "IDE indent on Enter" },
     { type: "toggle", key: "skipSetup", tag: "OPT", name: `Skip setup (${skipSetup ? "ON" : "OFF"})`, meta: "Jump to logic lines" },
     { type: "toggle", key: "barCaret", tag: "OPT", name: `Caret style (${barCaret ? "Bar" : "Block"})`, meta: "Toggle cursor" },
@@ -1394,6 +1397,12 @@ view.restart.addEventListener("click", () => {
   overridePassage = null;
   restoreDurationIfNeeded();
   loadPassage(true);
+});
+
+view["finish-run"].addEventListener("click", () => {
+  if (run?.started !== null && run.ended === null) {
+    finishRun("Session finished", performance.now());
+  }
 });
 
 view.retry.addEventListener("click", () => loadPassage(true));

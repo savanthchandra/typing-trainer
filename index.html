@@ -31,6 +31,7 @@
         <h1>Typing practice<span>.</span></h1>
       </div>
       <div class="actions">
+        <button type="button" id="finish-run" class="secondary" hidden title="Finish unlimited session and view results">Finish</button>
         <button type="button" id="restart" class="secondary">Reset</button>
         <button type="button" id="next" class="primary">Next passage</button>
         <button type="button" id="open-custom" class="secondary">+ Custom</button>
@@ -48,7 +49,7 @@
         <button type="button" data-duration="1" aria-pressed="true">1 min</button>
         <button type="button" data-duration="3" aria-pressed="false">3 min</button>
         <button type="button" data-duration="5" aria-pressed="false">5 min</button>
-        <button type="button" data-duration="0" aria-pressed="false">Full file</button>
+        <button type="button" data-duration="0" aria-pressed="false" title="No time limit — type at your own pace">Unlimited</button>
       </div>
       <div id="level-control" class="setting-select">
         <label id="difficulty-label" for="difficulty">Python level</label>
