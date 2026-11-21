@@ -100,7 +100,7 @@ function updateGuide() {
     ? `${fingerNames[shift.finger]} on Shift · ${fingerNames[key.finger]}`
     : fingerNames[key.finger];
   const keyLabel = key.code.startsWith("Key") ? key.label.toUpperCase() : key.label;
-  const labels = shift ? ["Shift", keyLabel] : [keyLabel];
+  const labels = shift ? ["Shift", keyLabel] : [key.code === "Period" ? "Full stop (.)" : keyLabel];
   view["next-keys"].setAttribute("aria-label", "Next key: " + labels.join(" plus "));
   for (const label of labels) {
     const keycap = document.createElement("kbd");
@@ -155,9 +155,10 @@ function keyDown(event) {
   event.preventDefault();
   if (event.repeat) return;
   const matches = character === passage.text[cursor];
-  const key = physicalKey ?? typed.key;
-  hands.down(key, !matches);
-  if (!physicalKey) hands.up(key.code);
+  // Use the character's US QWERTY key for the illustration, including when
+  // a remapped key or the numeric keypad produced that character.
+  hands.down(typed.key, !matches);
+  if (event.code !== typed.key.code) hands.up(typed.key.code);
 
   if (document.activeElement === document.body) view.passage.focus({ preventScroll: true });
   attempts += 1;

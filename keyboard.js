@@ -59,6 +59,7 @@ function addKeys(keyboard) {
       const key = { code, label, shifted, finger, x, y, width };
       const element = document.createElement("div");
       element.className = "key";
+      element.dataset.keyCode = code;
       if (homeCodes.has(code)) element.classList.add("home");
       if (code === "KeyF" || code === "KeyJ") element.classList.add("anchor");
       element.style.cssText = `left:${x / keyboardWidth * 100}%;top:${y / keyboardHeight * 100}%;width:${width / keyboardWidth * 100}%;height:${47 / keyboardHeight * 100}%`;
@@ -90,15 +91,15 @@ const heightProjection = .32;
 const restingHeight = 12;
 const pressingHeight = 3;
 const fingerShapes = [
-  { name: "P", knuckle: [-76, 242], lengths: [47, 28, 21], width: 37 },
-  { name: "R", knuckle: [-31, 227], lengths: [56, 32, 24], width: 42 },
-  { name: "M", knuckle: [15, 221], lengths: [60, 35, 26], width: 44 },
-  { name: "I", knuckle: [58, 230], lengths: [55, 33, 24], width: 43 },
-  { name: "T", knuckle: [66, 311], lengths: [39, 30, 23], width: 46 }
+  { name: "P", knuckle: [-105, 244], lengths: [47, 28, 21], width: 42 },
+  { name: "R", knuckle: [-62, 238], lengths: [56, 32, 24], width: 48 },
+  { name: "M", knuckle: [-17, 231], lengths: [60, 35, 26], width: 50 },
+  { name: "I", knuckle: [34, 231], lengths: [55, 33, 24], width: 46 },
+  { name: "T", knuckle: [65, 322], lengths: [41, 34, 25], width: 51 }
 ];
 
 function keyContact(key, resting = false) {
-  if (key.code === "Space") return [511, key.y + (resting ? 24 : 35)];
+  if (key.code === "Space") return [530, key.y + (resting ? 18 : 34)];
   if (key.code === "ShiftLeft") return [132, key.y + 32];
   if (key.code === "ShiftRight") return [867, key.y + 32];
   return [key.x + key.width / 2, key.y + (resting ? 29 : 34)];
@@ -108,7 +109,7 @@ function createHand(side, homeKeys) {
   const rest = homeKeys.map(code => keyContact(physicalKeys.get(code), true));
   const center = (rest[0][0] + rest[3][0]) / 2;
   const sign = side === "L" ? 1 : -1;
-  rest.push([center + sign * 132, 263]);
+  rest.push([center + sign * 113, 257]);
   return {
     center, sign, pose: [0, 0, 0],
     fingers: fingerShapes.map((shape, i) => {
@@ -198,7 +199,7 @@ function fingerJoints(root, contact, [first, second, third]) {
 }
 
 function fingerOutline(points, width) {
-  const radii = [.52, .48, .42, .36].map(ratio => width * ratio);
+  const radii = [.55, .50, .44, .39].map(ratio => width * ratio);
   const left = [];
   const right = [];
   let direction = [0, -1];
@@ -336,7 +337,7 @@ class HandDisplay {
 
     const easing = duration => this.motion.matches ? 1 : 1 - Math.exp(-elapsed / duration);
     let moving = moveToward(hand.pose, desiredPose, easing(reach ? 21 : 46), .0002);
-    for (const finger of hand.fingers) {
+    const drawnFingers = hand.fingers.map(finger => {
       const press = pressedFingers.get(finger.id);
       const target = press
         ? [...handLocalPoint(hand, keyContact(press.key)), pressingHeight]
@@ -348,10 +349,42 @@ class HandDisplay {
       const contact = [...handPoint(hand, finger.contact), finger.contact[2]];
       const joints = fingerJoints(root, contact, finger.lengths)
         .map(([x, y, z]) => [x, y - z * heightProjection]);
-      this.drawFinger(joints, finger.width, press, this.expected.has(finger.id));
-    }
+      return { joints, width: finger.width, press, expected: this.expected.has(finger.id) };
+    });
     this.drawPalm(hand);
+    this.drawWebbing(drawnFingers);
+    for (const { joints, width, press, expected } of drawnFingers) {
+      this.drawFinger(joints, width, press, expected);
+    }
     return moving;
+  }
+
+  drawWebbing(fingers) {
+    const ctx = this.context;
+    const connect = (base, tip, fraction) => [
+      base[0] + (tip[0] - base[0]) * fraction,
+      base[1] + (tip[1] - base[1]) * fraction
+    ];
+    for (let i = 0; i < 3; i++) {
+      const [first, second] = fingers.slice(i, i + 2).map(finger => finger.joints);
+      const firstTip = first.at(-1);
+      const secondTip = second.at(-1);
+      const spread = Math.hypot(firstTip[0] - secondTip[0], firstTip[1] - secondTip[1]);
+      const height = (i === 2 ? .54 : .89) - clamp((spread - 67) / 95, 0, .43);
+      const a = connect(first[0], firstTip, height);
+      const b = connect(second[0], secondTip, height);
+      const dip = Math.max(a[1], b[1]) + (i === 2 ? 23 : 11);
+      ctx.beginPath();
+      ctx.moveTo(...first[0]);
+      ctx.lineTo(...a);
+      ctx.bezierCurveTo(a[0] + (b[0] - a[0]) * .32, dip, b[0] - (b[0] - a[0]) * .32, dip, ...b);
+      ctx.lineTo(...second[0]);
+      ctx.lineTo(second[0][0], second[0][1] + 26);
+      ctx.lineTo(first[0][0], first[0][1] + 26);
+      ctx.closePath();
+      ctx.fillStyle = "#c59182";
+      ctx.fill();
+    }
   }
 
   drawPalm(hand) {
@@ -368,43 +401,41 @@ class HandDisplay {
     skin.addColorStop(.75, "#ad7e6f");
     skin.addColorStop(1, "#7a5a59");
     ctx.beginPath();
-    ctx.moveTo(-123, 560);
-    ctx.bezierCurveTo(-142, 474, -128, 411, -112, 358);
-    ctx.bezierCurveTo(-101, 322, -106, 281, -94, 254);
-    ctx.quadraticCurveTo(-85, 231, -65, 230);
-    ctx.quadraticCurveTo(-49, 231, -42, 221);
-    ctx.quadraticCurveTo(-33, 212, -18, 219);
-    ctx.quadraticCurveTo(-8, 222, 2, 215);
-    ctx.quadraticCurveTo(13, 206, 29, 215);
-    ctx.quadraticCurveTo(41, 226, 50, 222);
-    ctx.quadraticCurveTo(72, 215, 77, 237);
-    ctx.bezierCurveTo(80, 253, 64, 273, 75, 286);
-    ctx.bezierCurveTo(83, 300, 102, 315, 100, 335);
-    ctx.bezierCurveTo(97, 371, 73, 400, 49, 433);
-    ctx.quadraticCurveTo(12, 483, 27, 560);
+    ctx.moveTo(-184, 560);
+    ctx.bezierCurveTo(-199, 490, -202, 449, -181, 385);
+    ctx.bezierCurveTo(-162, 333, -161, 313, -147, 284);
+    ctx.bezierCurveTo(-135, 260, -128, 235, -107, 233);
+    ctx.quadraticCurveTo(-91, 235, -80, 229);
+    ctx.quadraticCurveTo(-69, 218, -54, 224);
+    ctx.quadraticCurveTo(-39, 231, -30, 221);
+    ctx.quadraticCurveTo(-20, 211, -3, 222);
+    ctx.quadraticCurveTo(13, 229, 24, 220);
+    ctx.quadraticCurveTo(48, 207, 53, 233);
+    ctx.bezierCurveTo(60, 252, 41, 284, 54, 301);
+    ctx.bezierCurveTo(69, 315, 88, 320, 89, 342);
+    ctx.bezierCurveTo(92, 379, 71, 403, 47, 434);
+    ctx.bezierCurveTo(20, 469, -6, 510, -4, 560);
     ctx.closePath();
     ctx.fillStyle = skin;
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(-94, 254);
-    ctx.bezierCurveTo(-112, 292, -101, 331, -118, 375);
-    ctx.quadraticCurveTo(-136, 425, -132, 477);
-    ctx.bezierCurveTo(-104, 434, -91, 386, -88, 332);
-    ctx.quadraticCurveTo(-85, 283, -80, 246);
+    ctx.moveTo(-137, 274);
+    ctx.bezierCurveTo(-167, 309, -165, 351, -181, 385);
+    ctx.quadraticCurveTo(-199, 433, -198, 480);
+    ctx.bezierCurveTo(-168, 438, -154, 392, -144, 338);
+    ctx.quadraticCurveTo(-136, 300, -119, 252);
     ctx.closePath();
     ctx.fillStyle = "rgba(108,65,74,.15)";
     ctx.fill();
 
     ctx.beginPath();
-    ctx.moveTo(72, 251);
-    ctx.quadraticCurveTo(63, 271, 49, 283);
-    ctx.moveTo(-47, 236);
-    ctx.quadraticCurveTo(-34, 233, -25, 239);
-    ctx.moveTo(-7, 230);
-    ctx.quadraticCurveTo(5, 225, 17, 230);
-    ctx.moveTo(31, 242);
-    ctx.quadraticCurveTo(45, 238, 54, 245);
+    ctx.moveTo(51, 293);
+    ctx.quadraticCurveTo(43, 318, 51, 341);
+    ctx.moveTo(-85, 277);
+    ctx.quadraticCurveTo(-71, 269, -56, 271);
+    ctx.moveTo(-28, 263);
+    ctx.quadraticCurveTo(-14, 255, 1, 259);
     ctx.strokeStyle = "rgba(112,63,69,.24)";
     ctx.lineWidth = 1.45;
     ctx.lineCap = "round";
@@ -426,7 +457,7 @@ class HandDisplay {
       skin.addColorStop(1, "#e6818c");
     } else if (press || expected) {
       skin.addColorStop(.44, "#a782ca");
-      skin.addColorStop(1, "#a879f3");
+      skin.addColorStop(1, "#9b62f7");
     } else {
       skin.addColorStop(.58, "#ce9c87");
       skin.addColorStop(1, "#c59182");
@@ -439,11 +470,6 @@ class HandDisplay {
     ctx.closePath();
     ctx.fillStyle = skin;
     ctx.fill();
-    ctx.strokeStyle = "rgba(110,66,73,.42)";
-    ctx.lineWidth = 1.05;
-    ctx.lineJoin = "round";
-    ctx.stroke();
-
     const joint = points[1];
     const across = [left[1][0] - right[2][0], left[1][1] - right[2][1]];
     ctx.beginPath();
@@ -462,7 +488,7 @@ class HandDisplay {
     ctx.fillStyle = press?.wrong ? "#ffadad" : press ? "#b6e8cb" : expected ? "#e6d6ff" : "#e1b4a7";
     ctx.fill();
     ctx.strokeStyle = press?.wrong ? "#7a4755" : press ? "#44665b" : expected ? "#886ab8" : "#a57273";
-    ctx.lineWidth = expected || press ? 1.65 : .85;
+    ctx.lineWidth = expected || press ? 1.4 : .7;
     ctx.stroke();
     ctx.restore();
   }
