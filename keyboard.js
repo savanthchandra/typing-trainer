@@ -1,5 +1,8 @@
 "use strict";
 
+const keyboardWidth = 1000;
+const keyboardHeight = 426;
+
 const fingerNames = {
   LP: "Left pinky", LR: "Left ring finger", LM: "Left middle finger", LI: "Left index finger", LT: "Left thumb",
   RP: "Right pinky", RR: "Right ring finger", RM: "Right middle finger", RI: "Right index finger", RT: "Right thumb"
@@ -58,7 +61,7 @@ function addKeys(keyboard) {
       element.className = "key";
       if (homeCodes.has(code)) element.classList.add("home");
       if (code === "KeyF" || code === "KeyJ") element.classList.add("anchor");
-      element.style.cssText = `left:${x / 10}%;top:${y / 3.76}%;width:${width / 10}%;height:${47 / 3.76}%`;
+      element.style.cssText = `left:${x / keyboardWidth * 100}%;top:${y / keyboardHeight * 100}%;width:${width / keyboardWidth * 100}%;height:${47 / keyboardHeight * 100}%`;
       element.textContent = code.startsWith("Key") ? shifted : label;
       if (shifted && !code.startsWith("Key")) {
         const symbol = document.createElement("small");
@@ -83,11 +86,139 @@ function getGuide(character) {
   return { key, shift };
 }
 
-function fingerTarget(key) {
-  if (key.code === "Space") return [563, key.y + 29];
-  if (key.code === "ShiftLeft") return [135, key.y + 25];
-  if (key.code === "ShiftRight") return [864, key.y + 25];
-  return [key.x + key.width / 2, key.y + 31];
+const heightProjection = .32;
+const restingHeight = 12;
+const pressingHeight = 3;
+const fingerShapes = [
+  { name: "P", knuckle: [-76, 242], lengths: [47, 28, 21], width: 37 },
+  { name: "R", knuckle: [-31, 227], lengths: [56, 32, 24], width: 42 },
+  { name: "M", knuckle: [15, 221], lengths: [60, 35, 26], width: 44 },
+  { name: "I", knuckle: [58, 230], lengths: [55, 33, 24], width: 43 },
+  { name: "T", knuckle: [66, 311], lengths: [39, 30, 23], width: 46 }
+];
+
+function keyContact(key, resting = false) {
+  if (key.code === "Space") return [511, key.y + (resting ? 24 : 35)];
+  if (key.code === "ShiftLeft") return [132, key.y + 32];
+  if (key.code === "ShiftRight") return [867, key.y + 32];
+  return [key.x + key.width / 2, key.y + (resting ? 29 : 34)];
+}
+
+function createHand(side, homeKeys) {
+  const rest = homeKeys.map(code => keyContact(physicalKeys.get(code), true));
+  const center = (rest[0][0] + rest[3][0]) / 2;
+  const sign = side === "L" ? 1 : -1;
+  rest.push([center + sign * 132, 263]);
+  return {
+    center, sign, pose: [0, 0, 0],
+    fingers: fingerShapes.map((shape, i) => {
+      const [x, y] = rest[i];
+      const home = [sign * (x - center), y];
+      return { ...shape, id: side + shape.name, home, rest: [x, y], contact: [...home, restingHeight] };
+    })
+  };
+}
+
+function handPoint(hand, [x, y], pose = hand.pose) {
+  const [dx, dy, angle] = pose;
+  const localX = x * hand.sign;
+  const localY = y - 270;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return [hand.center + dx + localX * cos - localY * sin, 270 + dy + localX * sin + localY * cos];
+}
+
+function handLocalPoint(hand, [x, y]) {
+  const [dx, dy, angle] = hand.pose;
+  const translatedX = x - hand.center - dx;
+  const translatedY = y - 270 - dy;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return [
+    hand.sign * (translatedX * cos + translatedY * sin),
+    270 - translatedX * sin + translatedY * cos
+  ];
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function moveToward(point, target, amount, thirdTolerance = .22) {
+  let moving = false;
+  for (let i = 0; i < point.length; i++) {
+    const distance = target[i] - point[i];
+    const threshold = i === 2 ? thirdTolerance : .22;
+    if (Math.abs(distance) <= threshold || amount === 1) {
+      point[i] = target[i];
+    } else {
+      point[i] += distance * amount;
+      moving = true;
+    }
+  }
+  return moving;
+}
+
+function along(point, direction, distance) {
+  return point.map((coordinate, i) => coordinate + direction[i] * distance);
+}
+
+function inTypingPlane(from, to) {
+  const [dx, dy, dz] = to.map((coordinate, i) => coordinate - from[i]);
+  const horizontal = Math.hypot(dx, dy);
+  const distance = Math.hypot(horizontal, dz);
+  if (horizontal < .001) {
+    return { distance, direction: [0, 0, dz >= 0 ? 1 : -1], up: [0, -1, 0] };
+  }
+  return {
+    distance,
+    direction: [dx / distance, dy / distance, dz / distance],
+    up: [-dx * dz / (horizontal * distance), -dy * dz / (horizontal * distance), horizontal / distance]
+  };
+}
+
+// Solve three fixed-length bones in the plane facing the key. The middle joint
+// arches above the keyboard, so shorter reaches curve instead of shrinking.
+function fingerJoints(root, contact, [first, second, third]) {
+  const tip = [contact[0], contact[1] + contact[2] * heightProjection, contact[2]];
+  const plane = inTypingPlane(root, tip);
+  const length = first + second + third;
+  const curl = clamp((1 - plane.distance / length) * 1.7, .025, .84);
+  const tail = Math.hypot(second + third * Math.cos(curl), third * Math.sin(curl));
+  const reach = clamp(plane.distance, Math.abs(first - tail) + .1, first + tail - .1);
+  const end = along(root, plane.direction, reach);
+  const forward = (first ** 2 + reach ** 2 - tail ** 2) / (2 * reach);
+  const bend = Math.sqrt(Math.max(0, first ** 2 - forward ** 2));
+  const middle = along(along(root, plane.direction, forward), plane.up, bend);
+  const tailPlane = inTypingPlane(middle, end);
+  const tailForward = (second ** 2 + tail ** 2 - third ** 2) / (2 * tail);
+  const tailBend = Math.sqrt(Math.max(0, second ** 2 - tailForward ** 2));
+  const distal = along(along(middle, tailPlane.direction, tailForward), tailPlane.up, tailBend);
+  return [root, middle, distal, end];
+}
+
+function fingerOutline(points, width) {
+  const radii = [.52, .48, .42, .36].map(ratio => width * ratio);
+  const left = [];
+  const right = [];
+  let direction = [0, -1];
+  points.forEach(([x, y], index) => {
+    const before = points[Math.max(index - 1, 0)];
+    const after = points[Math.min(index + 1, points.length - 1)];
+    const distance = Math.hypot(after[0] - before[0], after[1] - before[1]);
+    if (distance > .01) direction = [(after[0] - before[0]) / distance, (after[1] - before[1]) / distance];
+    const radius = radii[index];
+    left.push([x - direction[1] * radius, y + direction[0] * radius]);
+    right.push([x + direction[1] * radius, y - direction[0] * radius]);
+  });
+  right.reverse();
+  return { left, right, direction, tipRadius: radii.at(-1) };
+}
+
+function traceEdge(ctx, points) {
+  ctx.quadraticCurveTo(points[1][0], points[1][1], (points[1][0] + points[2][0]) / 2,
+    (points[1][1] + points[2][1]) / 2);
+  ctx.quadraticCurveTo(...points[2], ...points[3]);
 }
 
 class HandDisplay {
@@ -96,31 +227,15 @@ class HandDisplay {
     this.context = canvas.getContext("2d");
     this.motion = matchMedia("(prefers-reduced-motion: reduce)");
     this.hands = [
-      { side: "L", center: 262, sign: 1, keys: ["KeyA", "KeyS", "KeyD", "KeyF"] },
-      { side: "R", center: 680, sign: -1, keys: ["Semicolon", "KeyL", "KeyK", "KeyJ"] }
+      createHand("L", ["KeyA", "KeyS", "KeyD", "KeyF"]),
+      createHand("R", ["Semicolon", "KeyL", "KeyK", "KeyJ"])
     ];
-    this.fingers = new Map();
     this.presses = new Map();
     this.expected = new Set();
     this.frame = null;
-    for (const hand of this.hands) {
-      hand.fingers = hand.keys.map((code, index) => {
-        const finger = hand.side + "PRMI"[index];
-        const home = fingerTarget(physicalKeys.get(code));
-        const joint = [hand.center + hand.sign * [-81, -34, 15, 64][index], [258, 245, 241, 248][index]];
-        return this.addFinger(finger, home, joint, [22, 25, 27, 28][index]);
-      });
-      const thumbHome = hand.side === "L" ? [438, 264] : [563, 268];
-      hand.fingers.push(this.addFinger(hand.side + "T", thumbHome, [hand.center + hand.sign * 76, 304], 29));
-    }
+    this.lastFrame = null;
     new ResizeObserver(() => this.resize()).observe(canvas);
     this.resize();
-  }
-
-  addFinger(id, home, joint, width) {
-    const finger = { id, home, joint, width, point: [...home] };
-    this.fingers.set(id, finger);
-    return finger;
   }
 
   resize() {
@@ -143,12 +258,12 @@ class HandDisplay {
   up(code) {
     const press = this.presses.get(code);
     if (!press) return;
-    press.release = Math.max(performance.now(), press.at + 95);
+    press.release = Math.max(performance.now(), press.at + 105);
     this.schedule();
   }
 
   clear() {
-    for (const press of this.presses.values()) press.key.element.classList.remove("pressed", "wrong");
+    for (const { key } of this.presses.values()) key.element.classList.remove("pressed", "wrong");
     this.presses.clear();
     this.schedule();
   }
@@ -163,104 +278,192 @@ class HandDisplay {
 
   draw(time) {
     const ctx = this.context;
+    const elapsed = clamp(time - (this.lastFrame ?? time), 8, 32);
+    this.lastFrame = time;
     const pressedFingers = new Map();
     let keepMoving = false;
     for (const [code, press] of this.presses) {
       const active = time < press.release;
       press.key.element.classList.toggle("pressed", active);
       press.key.element.classList.toggle("wrong", active && press.wrong);
-      if (!active) {
-        this.presses.delete(code);
+      if (active) {
+        const previous = pressedFingers.get(press.key.finger);
+        if (!previous || previous.at <= press.at) pressedFingers.set(press.key.finger, press);
+        if (Number.isFinite(press.release)) keepMoving = true;
       } else {
-        pressedFingers.set(press.key.finger, press);
-        keepMoving ||= Number.isFinite(press.release);
+        this.presses.delete(code);
       }
     }
 
-    ctx.setTransform(this.canvas.width / 1000, 0, 0, this.canvas.height / 376, 0, 0);
-    ctx.clearRect(0, 0, 1000, 376);
-    for (const hand of this.hands) this.drawPalm(hand);
-    for (const finger of this.fingers.values()) {
-      const press = pressedFingers.get(finger.id);
-      const expected = this.expected.has(finger.id);
-      const target = press ? fingerTarget(press.key) : finger.home;
-      const eased = this.motion.matches ? 1 : press ? .51 : .31;
-      finger.point = finger.point.map((coord, axis) => {
-        const distance = target[axis] - coord;
-        if (Math.abs(distance) < .6) return target[axis];
-        keepMoving = true;
-        return coord + distance * eased;
-      });
-      this.drawFinger(finger, press, expected);
+    ctx.setTransform(this.canvas.width / keyboardWidth, 0, 0, this.canvas.height / keyboardHeight, 0, 0);
+    ctx.clearRect(0, 0, keyboardWidth, keyboardHeight);
+    for (const hand of this.hands) {
+      if (this.drawHand(hand, pressedFingers, elapsed)) keepMoving = true;
     }
-    if (keepMoving) this.schedule();
+    if (keepMoving) {
+      this.schedule();
+    } else {
+      this.lastFrame = null;
+    }
   }
 
-  drawPalm({ center, sign }) {
+  drawHand(hand, pressedFingers, elapsed) {
+    let reach = null;
+    for (const finger of hand.fingers) {
+      const press = pressedFingers.get(finger.id);
+      if (press && (!reach || reach.press.at <= press.at)) reach = { finger, press };
+    }
+
+    const desiredPose = [0, 0, 0];
+    if (reach) {
+      const [x, y] = keyContact(reach.press.key);
+      const dx = x - reach.finger.rest[0];
+      const dy = y - reach.finger.rest[1];
+      desiredPose[0] = dx * .68;
+      desiredPose[1] = dy * (dy < 0 ? .76 : .49);
+      desiredPose[2] = clamp(dx * .00052, -.075, .075);
+
+      // Move the palm enough to leave some bend in the finger at far keys.
+      const [knuckleX, knuckleY] = handPoint(hand, reach.finger.knuckle, desiredPose);
+      const distance = Math.hypot(x - knuckleX, y - knuckleY);
+      const comfortableReach = reach.finger.lengths.reduce((total, bone) => total + bone, 0) * .89;
+      if (distance > comfortableReach) {
+        const adjustment = 1 - comfortableReach / distance;
+        desiredPose[0] += (x - knuckleX) * adjustment;
+        desiredPose[1] += (y - knuckleY) * adjustment;
+      }
+    }
+
+    const easing = duration => this.motion.matches ? 1 : 1 - Math.exp(-elapsed / duration);
+    let moving = moveToward(hand.pose, desiredPose, easing(reach ? 21 : 46), .0002);
+    for (const finger of hand.fingers) {
+      const press = pressedFingers.get(finger.id);
+      const target = press
+        ? [...handLocalPoint(hand, keyContact(press.key)), pressingHeight]
+        : [...finger.home, restingHeight];
+      if (moveToward(finger.contact, target, easing(press ? 17 : 33))) moving = true;
+      const base = handPoint(hand, finger.knuckle);
+      const height = finger.name === "T" ? 16 : 25;
+      const root = [base[0], base[1] + height * heightProjection, height];
+      const contact = [...handPoint(hand, finger.contact), finger.contact[2]];
+      const joints = fingerJoints(root, contact, finger.lengths)
+        .map(([x, y, z]) => [x, y - z * heightProjection]);
+      this.drawFinger(joints, finger.width, press, this.expected.has(finger.id));
+    }
+    this.drawPalm(hand);
+    return moving;
+  }
+
+  drawPalm(hand) {
     const ctx = this.context;
     ctx.save();
-    ctx.translate(center, 0);
-    ctx.scale(sign, 1);
-    const gradient = ctx.createLinearGradient(0, 226, 0, 373);
-    gradient.addColorStop(0, "rgba(150,126,220,.35)");
-    gradient.addColorStop(.67, "rgba(120,97,184,.43)");
-    gradient.addColorStop(1, "rgba(96,73,143,.53)");
+    ctx.translate(hand.center + hand.pose[0], 270 + hand.pose[1]);
+    ctx.rotate(hand.pose[2]);
+    ctx.scale(hand.sign, 1);
+    ctx.translate(0, -270);
+
+    const skin = ctx.createLinearGradient(0, 217, -38, 468);
+    skin.addColorStop(0, "#c59182");
+    skin.addColorStop(.50, "#c79582");
+    skin.addColorStop(.75, "#ad7e6f");
+    skin.addColorStop(1, "#7a5a59");
     ctx.beginPath();
-    ctx.moveTo(-54, 365);
-    ctx.bezierCurveTo(-51, 337, -91, 308, -93, 279);
-    ctx.bezierCurveTo(-98, 244, -57, 237, -34, 234);
-    ctx.bezierCurveTo(3, 225, 61, 227, 79, 253);
-    ctx.bezierCurveTo(98, 278, 112, 290, 95, 316);
-    ctx.bezierCurveTo(77, 335, 62, 342, 59, 365);
-    ctx.quadraticCurveTo(4, 375, -54, 365);
-    ctx.fillStyle = gradient;
+    ctx.moveTo(-123, 560);
+    ctx.bezierCurveTo(-142, 474, -128, 411, -112, 358);
+    ctx.bezierCurveTo(-101, 322, -106, 281, -94, 254);
+    ctx.quadraticCurveTo(-85, 231, -65, 230);
+    ctx.quadraticCurveTo(-49, 231, -42, 221);
+    ctx.quadraticCurveTo(-33, 212, -18, 219);
+    ctx.quadraticCurveTo(-8, 222, 2, 215);
+    ctx.quadraticCurveTo(13, 206, 29, 215);
+    ctx.quadraticCurveTo(41, 226, 50, 222);
+    ctx.quadraticCurveTo(72, 215, 77, 237);
+    ctx.bezierCurveTo(80, 253, 64, 273, 75, 286);
+    ctx.bezierCurveTo(83, 300, 102, 315, 100, 335);
+    ctx.bezierCurveTo(97, 371, 73, 400, 49, 433);
+    ctx.quadraticCurveTo(12, 483, 27, 560);
+    ctx.closePath();
+    ctx.fillStyle = skin;
     ctx.fill();
-    ctx.strokeStyle = "rgba(193,173,251,.44)";
-    ctx.lineWidth = 1.7;
-    ctx.stroke();
+
     ctx.beginPath();
-    ctx.moveTo(-56, 330);
-    ctx.quadraticCurveTo(-7, 343, 55, 331);
-    ctx.moveTo(10, 273);
-    ctx.quadraticCurveTo(44, 269, 58, 290);
-    ctx.strokeStyle = "rgba(197,181,250,.16)";
+    ctx.moveTo(-94, 254);
+    ctx.bezierCurveTo(-112, 292, -101, 331, -118, 375);
+    ctx.quadraticCurveTo(-136, 425, -132, 477);
+    ctx.bezierCurveTo(-104, 434, -91, 386, -88, 332);
+    ctx.quadraticCurveTo(-85, 283, -80, 246);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(108,65,74,.15)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(72, 251);
+    ctx.quadraticCurveTo(63, 271, 49, 283);
+    ctx.moveTo(-47, 236);
+    ctx.quadraticCurveTo(-34, 233, -25, 239);
+    ctx.moveTo(-7, 230);
+    ctx.quadraticCurveTo(5, 225, 17, 230);
+    ctx.moveTo(31, 242);
+    ctx.quadraticCurveTo(45, 238, 54, 245);
+    ctx.strokeStyle = "rgba(112,63,69,.24)";
+    ctx.lineWidth = 1.45;
+    ctx.lineCap = "round";
     ctx.stroke();
     ctx.restore();
   }
 
-  drawFinger(finger, press, expected) {
+  drawFinger(points, width, press, expected) {
     const ctx = this.context;
-    const [x, y] = finger.point;
-    const [jx, jy] = finger.joint;
-    const color = press?.wrong ? "#ff9ba7" : press ? "#a5f0cb" : expected ? "#d7c7ff" : "#ad94e4";
-    const fill = press?.wrong ? "rgba(218,112,137,.60)" : press ? "rgba(117,216,172,.54)" :
-      expected ? "rgba(183,155,247,.54)" : "rgba(156,128,220,.34)";
-
-    ctx.beginPath();
-    ctx.moveTo(jx, jy);
-    ctx.quadraticCurveTo(jx + (x - jx) * .39, y + (jy - y) * .53, x, y);
-    ctx.lineCap = "round";
-    ctx.lineWidth = finger.width + .7;
-    ctx.strokeStyle = color;
-    ctx.globalAlpha = press || expected ? .81 : .56;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.lineWidth = finger.width - 2.7;
-    ctx.strokeStyle = "#272739";
-    ctx.stroke();
-    ctx.strokeStyle = fill;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(x, y, press || expected ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    if (press || expected) {
-      ctx.beginPath();
-      ctx.arc(x, y, finger.width * .59, 0, Math.PI * 2);
-      ctx.lineWidth = 1.3;
-      ctx.strokeStyle = color;
-      ctx.stroke();
+    const { left, right, direction, tipRadius } = fingerOutline(points, width);
+    const end = points.at(-1);
+    const cap = tipRadius * 1.12;
+    const leftTip = left.at(-1);
+    const rightTip = right[0];
+    const skin = ctx.createLinearGradient(...points[0], ...end);
+    skin.addColorStop(0, "#c59182");
+    if (press?.wrong) {
+      skin.addColorStop(.57, "#d18f89");
+      skin.addColorStop(1, "#e6818c");
+    } else if (press || expected) {
+      skin.addColorStop(.44, "#a782ca");
+      skin.addColorStop(1, "#a879f3");
+    } else {
+      skin.addColorStop(.58, "#ce9c87");
+      skin.addColorStop(1, "#c59182");
     }
+    ctx.beginPath();
+    ctx.moveTo(...left[0]);
+    traceEdge(ctx, left);
+    ctx.bezierCurveTo(...along(leftTip, direction, cap), ...along(rightTip, direction, cap), ...rightTip);
+    traceEdge(ctx, right);
+    ctx.closePath();
+    ctx.fillStyle = skin;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(110,66,73,.42)";
+    ctx.lineWidth = 1.05;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+
+    const joint = points[1];
+    const across = [left[1][0] - right[2][0], left[1][1] - right[2][1]];
+    ctx.beginPath();
+    ctx.moveTo(...along(joint, across, -.19));
+    ctx.quadraticCurveTo(joint[0], joint[1] - 2.25, ...along(joint, across, .19));
+    ctx.strokeStyle = "rgba(115,74,76,.35)";
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(...end);
+    ctx.rotate(Math.atan2(direction[1], direction[0]) + Math.PI / 2);
+    const nailWidth = width * .49;
+    const nailHeight = width * .53;
+    ctx.beginPath();
+    ctx.roundRect(-nailWidth / 2, -width * .22, nailWidth, nailHeight, nailWidth * .36);
+    ctx.fillStyle = press?.wrong ? "#ffadad" : press ? "#b6e8cb" : expected ? "#e6d6ff" : "#e1b4a7";
+    ctx.fill();
+    ctx.strokeStyle = press?.wrong ? "#7a4755" : press ? "#44665b" : expected ? "#886ab8" : "#a57273";
+    ctx.lineWidth = expected || press ? 1.65 : .85;
+    ctx.stroke();
+    ctx.restore();
   }
 }
