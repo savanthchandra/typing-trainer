@@ -1,12 +1,13 @@
 "use strict";
 
-const duration = 60_000;
+let duration = 60_000;
 const indentationWidth = 4;
 const view = Object.fromEntries([
   "passage", "progress", "lesson-link", "keyboard", "hands", "finger-name", "next-keys",
   "restart", "next", "retry", "passage-choice", "line-count", "cursor-position", "time",
   "time-fill", "timer-card", "wpm", "cpm", "accuracy", "results", "result-title",
-  "result-summary", "session-status"
+  "result-summary", "session-status", "difficulty", "level-control", "passage-kind",
+  "terminal", "run-example", "run-typed", "click-sound", "preview-sound", "indent-help"
 ].map(id => [id, document.getElementById(id)]));
 
 const pythonKeywords = new Set((
@@ -17,6 +18,12 @@ const tokenPattern = /(?<comment>#[^\n]*)|(?<string>(?:[rRbBuUfF]{1,2})?(?:"""[\
 
 addKeys(view.keyboard);
 const hands = new HandDisplay(view.hands);
+const sounds = new TypingSounds(view["click-sound"], view["preview-sound"]);
+const terminal = new PythonTerminal(view.terminal);
+const modeButtons = [...document.querySelectorAll("[data-mode]")];
+const durationButtons = [...document.querySelectorAll("[data-duration]")];
+let mode = "python";
+let options = [];
 let passageIndex = 0;
 let passage;
 let slots = [];
@@ -26,11 +33,23 @@ let ticker;
 let activeSlot = null;
 let expectedKeys = [];
 
-for (const [index, exercise] of passages.entries()) {
-  const choice = document.createElement("option");
-  choice.value = index;
-  choice.textContent = exercise.file;
-  view["passage-choice"].append(choice);
+function loadChoices() {
+  const python = codingPassages.filter(exercise => exercise.level === view.difficulty.value);
+  options = mode === "english" ? englishPassages : mode === "python" ? python : [...englishPassages, ...python];
+  view["passage-choice"].replaceChildren();
+  for (const [index, exercise] of options.entries()) {
+    const choice = document.createElement("option");
+    choice.value = index;
+    choice.textContent = exercise.file;
+    view["passage-choice"].append(choice);
+  }
+  view["level-control"].hidden = mode === "english";
+}
+
+function chooseRandom(avoid = null) {
+  const kind = Math.random() < .5 ? "english" : "python";
+  const fromKind = options.filter(exercise => exercise.kind === kind && exercise !== avoid);
+  return options.indexOf(fromKind[Math.floor(Math.random() * fromKind.length)]);
 }
 
 function highlightPython(source) {
@@ -43,17 +62,23 @@ function highlightPython(source) {
   return styles;
 }
 
-function buildPassage() {
-  const accessibleText = document.createElement("pre");
-  accessibleText.className = "visually-hidden";
-  accessibleText.textContent = passage.text;
-  const source = document.createElement("div");
-  source.className = "source";
-  source.setAttribute("aria-hidden", "true");
+function addCharacter(container, row, symbol, line, column, indent = 0, style = "") {
+  const item = document.createElement("span");
+  item.className = "character";
+  if (style) item.classList.add(style);
+  if (symbol === "\n") item.classList.add("newline");
+  if (symbol === " " && column < indent && column % indentationWidth === 0) {
+    item.classList.add("indent-guide");
+  }
+  item.textContent = symbol === "\n" ? "↵" : symbol;
+  if (symbol === " ") item.dataset.marker = "·";
+  container.append(item);
+  slots.push({ symbol, item, row, line, column, indent, entered: null });
+}
+
+function addCodeLines(source) {
   const lines = passage.text.split("\n");
   const styles = highlightPython(passage.text);
-  slots = [];
-
   lines.forEach((line, lineIndex) => {
     const row = document.createElement("div");
     row.className = "source-line";
@@ -63,42 +88,72 @@ function buildPassage() {
     const code = document.createElement("span");
     code.className = "line-code";
     const indent = line.length - line.trimStart().length;
-    for (let column = 0; column <= line.length; column++) {
-      if (column === line.length && lineIndex === lines.length - 1) {
-        lastPosition = { line: lineIndex, column };
-        break;
-      }
-      const symbol = line[column] ?? "\n";
-      const item = document.createElement("span");
-      item.className = "character";
-      const style = styles[slots.length];
-      if (style) item.classList.add(style);
-      if (symbol === "\n") item.classList.add("newline");
-      if (symbol === " " && column < indent && column % indentationWidth === 0) {
-        item.classList.add("indent-guide");
-      }
-      item.textContent = symbol === "\n" ? "↵" : symbol;
-      if (symbol === " ") item.dataset.marker = "·";
-      code.append(item);
-      slots.push({ symbol, item, row, line: lineIndex, column, indent, entered: null });
+    for (let column = 0; column < line.length; column++) {
+      addCharacter(code, row, line[column], lineIndex, column, indent, styles[slots.length]);
     }
+    if (lineIndex < lines.length - 1) addCharacter(code, row, "\n", lineIndex, line.length);
     row.append(number, code);
     source.append(row);
   });
+  lastPosition = { line: lines.length - 1, column: lines.at(-1).length };
+  view["line-count"].textContent = lines.length + " lines";
+}
 
+function addEnglishParagraphs(source) {
+  const paragraphs = passage.text.split("\n\n");
+  paragraphs.forEach((paragraph, line) => {
+    const row = document.createElement("p");
+    row.className = "source-line";
+    let column = 0;
+    for (const word of paragraph.match(/\S+| +/g)) {
+      const container = word.startsWith(" ") ? row : document.createElement("span");
+      if (container !== row) {
+        container.className = "word";
+        row.append(container);
+      }
+      for (const symbol of word) addCharacter(container, row, symbol, line, column++);
+    }
+    if (line < paragraphs.length - 1) {
+      addCharacter(row, row, "\n", line, column++);
+      addCharacter(row, row, "\n", line, column);
+    }
+    source.append(row);
+  });
+  lastPosition = { line: paragraphs.length - 1, column: paragraphs.at(-1).length };
+  view["line-count"].textContent = paragraphs.length + " paragraphs";
+}
+
+function buildPassage() {
+  const accessibleText = document.createElement(passage.kind === "python" ? "pre" : "p");
+  accessibleText.className = "visually-hidden";
+  accessibleText.textContent = passage.text;
+  const source = document.createElement("div");
+  source.className = "source";
+  source.setAttribute("aria-hidden", "true");
+  slots = [];
+  if (passage.kind === "python") addCodeLines(source);
+  else addEnglishParagraphs(source);
+  view.passage.classList.toggle("english-passage", passage.kind === "english");
   view.passage.replaceChildren(accessibleText, source);
   view.passage.scrollTop = 0;
   view.passage.scrollLeft = 0;
-  view["line-count"].textContent = lines.length + " lines";
 }
 
 function loadPassage(focus = false) {
   clearInterval(ticker);
   ticker = undefined;
   run = { cursor: 0, correct: 0, attempts: 0, hits: 0, started: null, ended: null };
-  passage = passages[passageIndex];
+  passage = options[passageIndex];
+  const isPython = passage.kind === "python";
   view["passage-choice"].value = passageIndex;
-  view["lesson-link"].href = lessonBaseUrl + passage.chapter;
+  view["passage-kind"].textContent = isPython ? "py" : "EN";
+  view["lesson-link"].hidden = !isPython;
+  view["indent-help"].hidden = !isPython;
+  if (isPython) view["lesson-link"].href = lessonBaseUrl + passage.chapter;
+  else view["lesson-link"].removeAttribute("href");
+  view["time-fill"].max = duration / 1000;
+  terminal.reset();
+  view.terminal.hidden = !isPython;
   view.results.hidden = true;
   view["session-status"].textContent = "Ready";
   activeSlot = null;
@@ -118,8 +173,11 @@ function updateCursor() {
   const next = slots[run.cursor];
   activeSlot = run.ended === null ? next : null;
   const position = next ?? lastPosition;
-  view["cursor-position"].textContent = "Ln " + (position.line + 1) + ", Col " + (position.column + 1);
-  view.progress.textContent = Math.floor(run.cursor / slots.length * 100) + "% typed";
+  view["cursor-position"].textContent = passage.kind === "python"
+    ? "Ln " + (position.line + 1) + ", Col " + (position.column + 1)
+    : "Paragraph " + (position.line + 1);
+  terminal.setAvailability(passage.kind === "python" && run.cursor > 0);
+  view.progress.textContent = run.started === null ? "Type to start" : Math.floor(run.cursor / slots.length * 100) + "% typed";
 
   if (activeSlot) {
     activeSlot.item.classList.add("current");
@@ -161,12 +219,13 @@ function updateGuide(character) {
 function keepCurrentVisible({ item, row }) {
   const area = view.passage.getBoundingClientRect();
   const position = item.getBoundingClientRect();
-  const left = area.left + row.firstElementChild.getBoundingClientRect().width;
   if (position.bottom > area.bottom - 13) {
     view.passage.scrollTop += position.bottom - area.bottom + 27;
   } else if (position.top < area.top + 8) {
     view.passage.scrollTop -= area.top + 12 - position.top;
   }
+  if (passage.kind === "english") return;
+  const left = area.left + row.firstElementChild.getBoundingClientRect().width;
   if (position.right > area.right - 13) {
     view.passage.scrollLeft += position.right - area.right + 20;
   } else if (position.left < left + 7) {
@@ -207,7 +266,8 @@ function tick() {
 function startRun(now) {
   if (run.started !== null) return;
   run.started = now;
-  view["session-status"].textContent = "60-second test started";
+  const minutes = duration / 60_000;
+  view["session-status"].textContent = minutes + "-minute test started";
   ticker = setInterval(tick, 125);
 }
 
@@ -273,12 +333,18 @@ function keyDown(event) {
   if (checkDeadline(now)) return;
   const physicalKey = physicalKeys.get(event.code);
   if (event.key === "Shift") {
-    if (physicalKey && !event.repeat) hands.down(physicalKey);
+    if (physicalKey && !event.repeat) {
+      hands.down(physicalKey);
+      sounds.play();
+    }
     return;
   }
   if (event.key === "Backspace") {
     event.preventDefault();
-    if (run.cursor) animateKey(physicalKeys.get("Backspace"), event);
+    if (run.cursor) {
+      animateKey(physicalKeys.get("Backspace"), event);
+      sounds.play();
+    }
     backspace();
     return;
   }
@@ -299,11 +365,14 @@ function keyDown(event) {
   startRun(now);
   if (canIndent) {
     animateKey(physicalKeys.get("Tab"), event);
+    sounds.play();
     const remaining = Math.min(indentationWidth - slot.column % indentationWidth, slot.indent - slot.column);
     for (let cell = 0; cell < remaining; cell++) writeCharacter(" ");
   } else {
     // Match the printed character to the illustrated keyboard even on a remapped layout.
-    animateKey(typed.key, event, character !== slot.symbol);
+    const typo = character !== slot.symbol;
+    animateKey(typed.key, event, typo);
+    sounds.play(typo);
     writeCharacter(character);
   }
 
@@ -315,6 +384,39 @@ function keyDown(event) {
   }
 }
 
+for (const button of modeButtons) {
+  button.addEventListener("click", () => {
+    if (mode === button.dataset.mode) {
+      view.passage.focus({ preventScroll: true });
+      return;
+    }
+    mode = button.dataset.mode;
+    for (const item of modeButtons) item.setAttribute("aria-pressed", String(item === button));
+    loadChoices();
+    passageIndex = mode === "random" ? chooseRandom(passage) : 0;
+    loadPassage(true);
+  });
+}
+
+for (const button of durationButtons) {
+  button.addEventListener("click", () => {
+    const requested = Number(button.dataset.duration) * 60_000;
+    if (duration !== requested) {
+      duration = requested;
+      for (const item of durationButtons) item.setAttribute("aria-pressed", String(item === button));
+      loadPassage(true);
+    } else {
+      view.passage.focus({ preventScroll: true });
+    }
+  });
+}
+
+view.difficulty.addEventListener("change", () => {
+  loadChoices();
+  passageIndex = mode === "random" ? chooseRandom(passage) : 0;
+  loadPassage(true);
+});
+
 view["passage-choice"].addEventListener("change", event => {
   passageIndex = Number(event.target.value);
   loadPassage(true);
@@ -322,11 +424,14 @@ view["passage-choice"].addEventListener("change", event => {
 view.restart.addEventListener("click", () => loadPassage(true));
 view.retry.addEventListener("click", () => loadPassage(true));
 view.next.addEventListener("click", () => {
-  passageIndex = (passageIndex + 1) % passages.length;
+  passageIndex = mode === "random" ? chooseRandom(passage) : (passageIndex + 1) % options.length;
   loadPassage(true);
 });
+view["run-example"].addEventListener("click", () => terminal.run(passage.text));
+view["run-typed"].addEventListener("click", () => terminal.run(slots.slice(0, run.cursor).map(slot => slot.entered).join("")));
 document.addEventListener("keydown", keyDown);
 document.addEventListener("keyup", event => hands.up(event.code));
 document.addEventListener("visibilitychange", tick);
 window.addEventListener("blur", () => hands.clear());
+loadChoices();
 loadPassage();

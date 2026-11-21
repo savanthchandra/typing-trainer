@@ -4,13 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#11121a">
-  <meta name="description" content="Take a 60-second Python typing test with live speed metrics and an animated finger guide.">
-  <title>Home Row — Python Typing Test</title>
-  <link rel="stylesheet" href="style.css?v=5">
-  <script defer src="passages.js?v=5"></script>
+  <meta name="description" content="Practice typing English or Python in 1-, 3-, or 5-minute tests with live metrics and illustrated hand guidance.">
+  <title>Home Row — Typing Practice</title>
+  <link rel="stylesheet" href="style.css?v=6">
+  <script defer src="passages.js?v=6"></script>
   <script defer src="hand-art.js"></script>
   <script defer src="keyboard.js?v=4"></script>
-  <script defer src="app.js?v=5"></script>
+  <script defer src="practice-tools.js"></script>
+  <script defer src="app.js?v=6"></script>
 </head>
 <body>
   <header class="topbar">
@@ -22,12 +23,42 @@
   <main class="shell">
     <div class="heading">
       <div>
-        <h1>Python typing test<span>.</span></h1>
-        <p>Type the code to start a 60-second run.</p>
+        <h1>Typing practice<span>.</span></h1>
       </div>
       <div class="actions">
         <button type="button" id="restart" class="secondary">Reset</button>
         <button type="button" id="next" class="primary">Next passage</button>
+      </div>
+    </div>
+
+
+    <div class="settings" aria-label="Practice settings">
+      <div class="setting-group" role="group" aria-label="Practice mode">
+        <button type="button" data-mode="english" aria-pressed="false">English</button>
+        <button type="button" data-mode="python" aria-pressed="true">Python</button>
+        <button type="button" data-mode="random" aria-pressed="false">Random</button>
+      </div>
+      <div class="setting-group" role="group" aria-label="Test duration">
+        <button type="button" data-duration="1" aria-pressed="true">1 min</button>
+        <button type="button" data-duration="3" aria-pressed="false">3 min</button>
+        <button type="button" data-duration="5" aria-pressed="false">5 min</button>
+      </div>
+      <div id="level-control" class="setting-select">
+        <label for="difficulty">Python level</label>
+        <select id="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div class="setting-select sound-control">
+        <label for="click-sound">Sound</label>
+        <select id="click-sound">
+          <option value="soft">Soft</option>
+          <option value="mechanical">Mechanical</option>
+          <option value="off">Off</option>
+        </select>
+        <button type="button" id="preview-sound" class="secondary">Preview</button>
       </div>
     </div>
 
@@ -52,16 +83,33 @@
     </section>
 
     <div class="workspace">
-      <section class="panel editor" aria-label="Python editor">
+      <section class="panel guide" aria-labelledby="guide-title">
+        <div class="guide-header">
+          <div>
+            <h2 id="guide-title">Finger guide</h2>
+            <p id="finger-name"></p>
+          </div>
+          <div id="next-keys" class="next-keys" role="group" aria-label="Next key"></div>
+        </div>
+        <div class="keyboard-stage" aria-hidden="true">
+          <div class="keyboard-base"></div>
+          <div id="keyboard"></div>
+          <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
+          <canvas id="hands" width="1000" height="426"></canvas>
+        </div>
+        <p class="key-help"><kbd>Enter</kbd> Line break <span id="indent-help"><kbd>Tab</kbd> Indent</span> <kbd>Backspace</kbd> Correct</p>
+      </section>
+
+      <section class="panel editor" aria-label="Typing passage">
         <div class="editor-header">
           <div class="file-select">
-            <span class="file-icon" aria-hidden="true">py</span>
-            <label class="visually-hidden" for="passage-choice">Python passage</label>
+            <span id="passage-kind" class="file-icon" aria-hidden="true">py</span>
+            <label class="visually-hidden" for="passage-choice">Passage</label>
             <select id="passage-choice"></select>
           </div>
           <span id="line-count" class="line-count"></span>
         </div>
-        <p id="instructions" class="visually-hidden">Focus the editor and type the highlighted code. Enter inserts a line break. Tab inserts indentation at the start of a line. Backspace moves back one character. Press Escape to move focus out of the editor.</p>
+        <p id="instructions" class="visually-hidden">Type the highlighted character to start the timer. Enter inserts a line break and Backspace moves back one character. In Python, Tab fills leading indentation. Press Escape to move focus out of the passage.</p>
         <div class="editor-surface">
           <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing editor" aria-describedby="instructions"></div>
           <div id="results" class="results" hidden>
@@ -79,21 +127,19 @@
         </div>
       </section>
 
-      <section class="panel guide" aria-labelledby="guide-title">
-        <div class="guide-header">
-          <div>
-            <h2 id="guide-title">Finger guide</h2>
-            <p id="finger-name"></p>
+
+
+      <section id="terminal" class="panel terminal" aria-labelledby="terminal-title">
+        <div class="terminal-header">
+          <h2 id="terminal-title">Python terminal</h2>
+          <div class="terminal-actions">
+            <button type="button" id="run-example" class="secondary">Run example</button>
+            <button type="button" id="run-typed" class="primary" disabled>Run my code</button>
+            <button type="button" id="stop-python" class="secondary" hidden>Stop</button>
           </div>
-          <div id="next-keys" class="next-keys" role="group" aria-label="Next key"></div>
         </div>
-        <div class="keyboard-stage" aria-hidden="true">
-          <div class="keyboard-base"></div>
-          <div id="keyboard"></div>
-          <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
-          <canvas id="hands" width="1000" height="426"></canvas>
-        </div>
-        <p class="key-help"><kbd>Enter</kbd> Line break <kbd>Tab</kbd> Indent <kbd>Backspace</kbd> Correct</p>
+        <pre id="terminal-output" tabindex="0" aria-label="Python output">Run the example or type code to run your own version.</pre>
+        <p id="terminal-status" class="terminal-status" role="status" aria-atomic="true"></p>
       </section>
     </div>
     <p id="session-status" class="visually-hidden" role="status" aria-atomic="true"></p>
