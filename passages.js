@@ -1,219 +1,429 @@
 "use strict";
 
-const englishPassages = [
+const lessonBaseUrl = "https://savanthchandra.github.io/python-daily/#concepts/ch";
+
+const passages = [
   {
-    title: "Morning at the market",
-    text: 'Maya took the long way to the market, past the blue bakery and the quiet square. "Have you tried the ginger jam?" asked the vendor. She bought two jars, tucked them into her bag, and caught the next bus home.'
-  },
-  {
-    title: "The print shop",
-    text: 'June found an old typewriter in the back of the print shop. Its owner said, "Try this: the quick brown fox jumps over the lazy dog." On the wall, a poster read, "PACK MY BOX WITH FIVE DOZEN LIQUOR JUGS!" Every key on the old machine still worked.'
-  },
-  {
-    title: "Up the hill",
-    text: "At 6:45, we reached the fork in the trail. The sign read, 'Lookout (1 km); lake (2 km).' I checked our map: had we missed the bridge? No, it was just beyond the bend. We crossed it, unwrapped our sandwiches, and watched the clouds drift over the valley."
-  },
-  {
-    title: "A note from the library",
-    text: 'The library sent a reminder: "Your book is due Friday, April 17." Leo looked under his desk, behind the sofa, and inside his backpack. Where had he left it? His sister laughed. "You finished it at breakfast!" Sure enough, it was still on the kitchen table.'
-  }
-].map(passage => ({ ...passage, kind: "english" }));
-
-const pythonPassages = [
-  {
-    title: "Measure a garden path",
-    chapter: 1,
-    text: `# Import the math module so we can use its square root function.
-import math
-
-# Measure the two sides of the garden in meters.
-width = 3
-length = 4
-
-# Square both sides and add the results.
-squared_distance = width ** 2 + length ** 2
-
-# The square root gives the distance from corner to corner.
-distance = math.sqrt(squared_distance)
-
-# Show the measurements and the length of the path.
-print("Garden:", width, "by", length, "meters")
-print("Path length:", distance, "meters")`
-  },
-  {
-    title: "Split the cafe bill",
-    chapter: 2,
-    text: `# Add the price of each drink and snack.
-coffee = 80
-tea = 45
-sandwich = 120
-subtotal = coffee + tea + sandwich
-
-# Calculate a 10% tip, then add it to the bill.
-tip_rate = 0.10
-tip = subtotal * tip_rate
-total = subtotal + tip
-
-# Divide the final bill between two people.
-people = 2
-per_person = total / people
-
-# Display the total and each person's share.
-print("Subtotal:", subtotal)
-print("Tip:", tip)
-print("Each person pays:", per_person)`
-  },
-  {
-    title: "Clean a name tag",
-    chapter: 3,
-    text: `# A visitor wrote their name with extra spaces.
-raw_name = "  maya joseph  "
-
-# Remove the extra spaces and capitalize the words.
-name = raw_name.strip().title()
-
-# Find the first space to separate the two names.
-space_position = name.find(" ")
-first_name = name[:space_position]
-last_name = name[space_position + 1:]
-
-# Build a short label from the first name and last initial.
-initial = last_name[0]
-label = f"{first_name} {initial}."
-
-# Print the label so it can go on a name tag.
-print(f"Name tag: [{label}]")`
-  },
-  {
-    title: "Track visits to the book club",
+    file: "inventory_report.py",
     chapter: 5,
-    text: `# Keep a list of the names signed in this month.
-visits = ["Maya", "Leo", "Maya", "Zoey", "Leo", "Maya"]
+    text: `# Build an inventory report from a list of stock movements.
+movements = [
+    ("notebook", "stationery", 12),
+    ("blue pen", "stationery", 24),
+    ("notebook", "stationery", -10),
+    ("tea", "pantry", 16),
+    ("coffee", "pantry", 8),
+    ("tea", "pantry", -13),
+]
 
-# Use a set to find how many different people attended.
-members = set(visits)
-print(f"Unique visitors: {len(members)}")
+# Dictionaries track quantities and categories by item.
+stock = {}
+item_categories = {}
+categories = set()
 
-# Build a dictionary that tracks the number of visits per person.
-counts = {}
-for name in visits:
-    counts[name] = counts.get(name, 0) + 1
+for item, category, change in movements:
+    stock[item] = stock.get(item, 0) + change
+    item_categories[item] = category
+    categories.add(category)
 
-# Print each person's name and total in alphabetical order.
-for name, count in sorted(counts.items()):
-    print(f"{name}: {count} visits")`
-  },
-  {
-    title: "Check the quiz results",
-    chapter: 6,
-    text: `# Read a score out of 100 and choose a message for it.
-score = 76
+# Group the totals and collect items that need attention.
+category_totals = {category: 0 for category in categories}
+reorder = []
 
-# Check that the score is within the allowed range.
-if score < 0 or score > 100:
-    message = "Enter a score from 0 to 100."
-elif score >= 85:
-    message = "Excellent work!"
-elif score >= 60:
-    message = "You passed."
+for item, count in sorted(stock.items()):
+    category = item_categories[item]
+    category_totals[category] += count
+    if count < 5:
+        reorder.append((item, count))
+
+# Print one line for each category, followed by the alert list.
+print("Inventory report")
+for category, count in sorted(category_totals.items()):
+    print(f"{category.title():>12}: {count:>3} units")
+
+if reorder:
+    print("Order more of these items:")
+    for item, count in reorder:
+        print(f"  {item}: only {count} left")
 else:
-    message = "Try again after more practice."
-
-# Show the score and the message together.
-print(f"Quiz score: {score}%")
-print(message)`
+    print("All stock levels are healthy.")`
   },
   {
-    title: "Sum the even numbers",
+    file: "running_splits.py",
     chapter: 7,
-    text: `# Choose the last number to check.
-limit = 12
-total = 0
-count = 0
+    text: `# Report lap times for a runner, with splits every three laps.
+lap_times = [79, 76, 78, 75, 77, 74, 72, 73, 71]
+split_size = 3
+split_times = []
+running_total = 0
+split_total = 0
+fastest_lap = None
 
-# Check every number from 1 through the limit.
-for number in range(1, limit + 1):
-    # Skip odd numbers, which leave a remainder of 1.
-    if number % 2 != 0:
+# Use a loop to update the running totals after each lap.
+for lap, seconds in enumerate(lap_times, start=1):
+    running_total += seconds
+    split_total += seconds
+
+    if fastest_lap is None or seconds < fastest_lap[1]:
+        fastest_lap = (lap, seconds)
+
+    minutes, remainder = divmod(running_total, 60)
+    print(f"Lap {lap:02d}: {minutes}:{remainder:02d}")
+
+    # Save each complete split and reset its subtotal.
+    if lap % split_size == 0:
+        split_times.append(split_total)
+        split_total = 0
+
+# Include the remaining laps if the last split was incomplete.
+if split_total:
+    split_times.append(split_total)
+
+print("Split times:")
+for index in range(len(split_times)):
+    first_lap = index * split_size + 1
+    last_lap = min(first_lap + split_size - 1, len(lap_times))
+    seconds = split_times[index]
+    print(f"  Laps {first_lap}-{last_lap}: {seconds}s")
+
+if fastest_lap is not None:
+    lap, seconds = fastest_lap
+    print(f"Fastest lap: {lap} in {seconds}s")`
+  },
+  {
+    file: "trail_measurements.py",
+    chapter: 1,
+    text: `# Use standard library modules to summarize a walking route.
+import math
+import statistics
+
+# Each point is an east and north coordinate in meters.
+stops = [
+    ("Gate", (0, 0)),
+    ("Pond", (90, 120)),
+    ("Lookout", (155, 170)),
+    ("Bridge", (215, 250)),
+    ("Exit", (260, 310)),
+]
+
+segments = []
+total = 0.0
+
+# math.dist calculates the straight-line length of each leg.
+for (start, point_a), (end, point_b) in zip(stops, stops[1:]):
+    distance = math.dist(point_a, point_b)
+    minutes = math.ceil(distance / 72)
+    segments.append((start, end, distance, minutes))
+    total += distance
+
+# The statistics module handles the average leg length.
+lengths = [distance for _, _, distance, _ in segments]
+average = statistics.mean(lengths)
+longest = max(segments, key=lambda segment: segment[2])
+
+# Estimate water stops using distance markers on the route.
+water_intervals = [100, 200, 300]
+covered = 0.0
+water_stops = []
+
+for start, end, distance, _ in segments:
+    finish_distance = covered + distance
+    for marker in water_intervals:
+        if covered < marker <= finish_distance:
+            water_stops.append((marker, start, end))
+    covered = finish_distance
+
+print("Park walking route")
+print("=" * 32)
+for start, end, distance, minutes in segments:
+    print(f"{start:>8} to {end:<8} {distance:6.1f} m")
+    print(f"  Allow about {minutes} minutes.")
+
+print(f"Total distance: {total:.1f} meters")
+print(f"Typical leg: {average:.1f} meters")
+print(f"Longest leg: {longest[0]} to {longest[1]}")
+
+if water_stops:
+    print("Suggested water stops:")
+    for marker, start, end in water_stops:
+        print(f"  At {marker} m, between {start} and {end}.")`
+  },
+  {
+    file: "clean_contact_list.py",
+    chapter: 3,
+    text: `# Turn unevenly spaced contact entries into display labels.
+entries = [
+    "  maya  johnson | EVENTS ",
+    "Leo Ng | tech",
+    "zoey   carter | OPERATIONS",
+    "  KAI DESAI | design ",
+    "Sam   Flores | TECH  ",
+]
+
+def normalize_name(raw_name):
+    # split without an argument also handles repeated spaces.
+    words = raw_name.split()
+    return " ".join(word.capitalize() for word in words)
+
+def create_handle(name):
+    first, *rest = name.split()
+    # Take up to three characters from the final name.
+    suffix = rest[-1][:3] if rest else ""
+    return f"{first.lower()}.{suffix.lower()}".rstrip(".")
+
+records = []
+for raw_entry in entries:
+    raw_name, separator, raw_team = raw_entry.partition("|")
+    if not separator:
         continue
 
-    # Add the even number and count it.
-    total += number
-    count += 1
+    name = normalize_name(raw_name)
+    team = raw_team.strip().title()
+    handle = create_handle(name)
+    records.append((name, team, handle))
 
-# Print how many even numbers we found and their sum.
-print(f"Even numbers found: {count}")
-print(f"Sum: {total}")`
+# Sort by team and then by the display name.
+records.sort(key=lambda entry: (entry[1], entry[0]))
+print(f"{'Name':<20} {'Team':<12} Handle")
+print("-" * 47)
+
+for name, team, handle in records:
+    print(f"{name:<20} {team:<12} @{handle}")`
   },
   {
-    title: "Convert a set of temperatures",
+    file: "build_schedule.py",
+    chapter: 4,
+    text: `# Organize a short workshop schedule using lists and tuples.
+schedule = [
+    (10, "Registration", 15),
+    (30, "Design exercise", 35),
+    (75, "Break", 10),
+    (90, "Group review", 30),
+]
+extra_sessions = [(55, "Questions", 10), (65, "Demo", 10)]
+
+# Work from a copy so the starting schedule stays available.
+agenda = schedule.copy()
+agenda.extend(extra_sessions)
+agenda.sort()
+
+room = "Studio B"
+revised = []
+for start, title, minutes in agenda:
+    end = start + minutes
+    revised.append((start, end, title))
+
+# Build a list of any overlaps between neighboring sessions.
+overlaps = []
+for before, after in zip(revised, revised[1:]):
+    if before[1] > after[0]:
+        overlaps.append((before[2], after[2]))
+
+print(f"Workshop schedule for {room}")
+for start, end, title in revised:
+    start_hour, start_minute = divmod(start, 60)
+    end_hour, end_minute = divmod(end, 60)
+    begins = f"{9 + start_hour}:{start_minute:02d}"
+    finishes = f"{9 + end_hour}:{end_minute:02d}"
+    print(f"{begins} to {finishes}  {title}")
+
+if overlaps:
+    print("Sessions that overlap:")
+    for first, second in overlaps:
+        print(f"  {first} overlaps with {second}")
+else:
+    print("There are no timing conflicts.")`
+  },
+  {
+    file: "review_quiz_scores.py",
+    chapter: 6,
+    text: `# Assign feedback to scores from a weekly practice quiz.
+scores = [
+    ("Ana", 85),
+    ("Ben", 58),
+    ("Chris", 73),
+    ("Dina", 102),
+    ("Eli", None),
+    ("Farah", 96),
+    ("Gia", 45),
+]
+
+def assess(score):
+    # Handle missing and out-of-range values first.
+    if score is None:
+        return "Missing", "Submit the quiz when ready."
+    if not 0 <= score <= 100:
+        return "Invalid", "Check the entered score."
+
+    if score >= 90:
+        return "Excellent", "Try the extension question."
+    if score >= 70:
+        return "Good", "Review the questions you missed."
+    if score >= 50:
+        return "Pass", "Revisit the worked examples."
+    return "Retry", "Do the warm-up before your next try."
+
+valid_scores = []
+for name, score in scores:
+    label, feedback = assess(score)
+    print(f"{name:<7} {label:<10} {feedback}")
+    if label not in {"Missing", "Invalid"}:
+        valid_scores.append(score)
+
+# Only report a mean when at least one score is valid.
+if valid_scores:
+    average = sum(valid_scores) / len(valid_scores)
+    print(f"Class average: {average:.1f}%")
+else:
+    print("There are no valid scores to average.")`
+  },
+  {
+    file: "temperature_summary.py",
     chapter: 8,
-    text: `# Define a function that converts Celsius to Fahrenheit.
+    text: `# Split a weather summary into small functions.
 def to_fahrenheit(celsius):
     return celsius * 9 / 5 + 32
 
-# Define another function to format the result.
-def format_temperature(celsius):
-    fahrenheit = to_fahrenheit(celsius)
-    return f"{celsius} C = {fahrenheit:.1f} F"
+def mean(readings):
+    if not readings:
+        return None
+    return sum(readings) / len(readings)
 
-# Convert each reading and show it on a separate line.
-readings = [-5, 0, 18, 24, 37]
-for reading in readings:
-    print(format_temperature(reading))
+def present_range(label, readings):
+    # Returning early keeps the formatting code simple.
+    if not readings:
+        return f"{label}: no measurements"
 
-# Check two familiar reference points.
+    low = min(readings)
+    high = max(readings)
+    center = mean(readings)
+    return (
+        f"{label}: {low:.1f} to {high:.1f} C, "
+        f"mean {center:.1f} C "
+        f"({to_fahrenheit(center):.1f} F)"
+    )
+
+morning = [13.6, 13.8, 14.4, 14.9]
+afternoon = [20.1, 21.6, 21.9, 20.8]
+evening = [15.3, 16.2, 17.0]
+
+# Pass each group through the same formatting function.
+groups = {
+    "Morning": morning,
+    "Afternoon": afternoon,
+    "Evening": evening,
+    "Overnight": [],
+}
+
+for label, readings in groups.items():
+    print(present_range(label, readings))
+
 assert to_fahrenheit(0) == 32
-assert to_fahrenheit(100) == 212`
+assert mean([10, 20, 30]) == 20`
   },
   {
-    title: "Check the symbols on a keyboard",
-    chapter: 3,
-    text: `# A US QWERTY keyboard has symbols above the number keys.
-number_symbols = "!@#$%^&*()"
-
-# A raw string lets us store a backslash as a literal character.
-other_symbols = r"""\`~_-+=[]{}|\\;:'",.<>/?"""
-
-# Join the two strings and count the available symbols.
-symbols = number_symbols + other_symbols
-print(f"Symbols found: {len(symbols)}")
-
-# Print the first five and the final five symbols.
-print("First five:", symbols[:5])
-print("Last five:", symbols[-5:])
-
-# Check if selected characters are in the string.
-for symbol in ("@", "|", "?"):
-    print(f"{symbol}: {symbol in symbols}")`
-  },
-  {
-    title: "Handle an invalid number",
+    file: "read_expenses.py",
     chapter: 12,
-    text: `# These values were copied from a handwritten list.
-entries = ["18", "24", "?", "12"]
-valid_numbers = []
+    text: `# Parse a few expense entries without stopping at a bad row.
+raw_rows = [
+    "Bus fare, 40",
+    "Lunch, 125.50",
+    "Receipt total, unknown",
+    "Notebook, 68",
+    "Refund, -20",
+    "No amount on this line",
+]
 
-# Convert each entry to an integer when possible.
-for entry in entries:
+def read_amount(row):
+    name, separator, amount = row.rpartition(",")
+    if not separator or not name.strip():
+        raise ValueError("Expected a description and amount")
+
+    value = float(amount.strip())
+    return name.strip(), value
+
+items = []
+errors = []
+
+for line, row in enumerate(raw_rows, start=1):
     try:
-        number = int(entry)
-    except ValueError:
-        # A question mark cannot be converted to an integer.
-        print(f"Skipped invalid entry: {entry!r}")
+        name, amount = read_amount(row)
+    except ValueError as error:
+        errors.append((line, str(error)))
     else:
-        valid_numbers.append(number)
+        items.append((name, amount))
 
-# Calculate the average only if a valid number was found.
-if valid_numbers:
-    average = sum(valid_numbers) / len(valid_numbers)
-    print(f"Average: {average:.2f}")`
+print("Recorded expenses")
+for name, amount in items:
+    print(f"{name:<18} {amount:>7.2f}")
+
+# Separate charges from refunds so the report is easy to check.
+charges = []
+refunds = []
+for name, amount in items:
+    if amount < 0:
+        refunds.append((name, -amount))
+    else:
+        charges.append((name, amount))
+
+charge_total = sum(amount for _, amount in charges)
+refund_total = sum(amount for _, amount in refunds)
+print(f"Charges: {charge_total:.2f}")
+print(f"Refunds: {refund_total:.2f}")
+print(f"Net amount: {charge_total - refund_total:.2f}")
+
+if charges:
+    largest = max(charges, key=lambda item: item[1])
+    name, amount = largest
+    print(f"Largest charge: {name} ({amount:.2f})")
+
+# Keep the row number so each rejected entry can be checked.
+if errors:
+    print("Check these rows:")
+    for line, error in errors:
+        print(f"  Line {line}: {error}")`
+  },
+  {
+    file: "keyboard_characters.py",
+    chapter: 3,
+    text: `# Verify the characters available in a US keyboard layout.
+examples = [
+    "the quick brown fox jumps over the lazy dog",
+    "PACK MY BOX WITH FIVE DOZEN LIQUOR JUGS",
+]
+
+digits = "0123456789"
+number_symbols = "!@#$%^&*()"
+other_symbols = r"""\`~_-+=[]{}|\\;:'",.<>/?"""
+symbols = number_symbols + other_symbols
+
+# Count distinct characters for each group.
+groups = {
+    "lowercase": examples[0].replace(" ", ""),
+    "uppercase": examples[1].replace(" ", ""),
+    "digits": digits,
+    "symbols": symbols,
+}
+
+def ordered_unique(text):
+    return "".join(sorted(set(text)))
+
+for label, text in groups.items():
+    unique = ordered_unique(text)
+    print(f"{label:<10} {len(unique):>2}: {unique}")
+
+# Check that the same letters appear in both example sentences.
+lowercase = ordered_unique(groups["lowercase"])
+uppercase = ordered_unique(groups["uppercase"]).lower()
+assert lowercase == uppercase
+
+# Count how often punctuation appears in a sample sentence.
+sample = 'Wait... did Maya say "yes", or did she say "no"?'
+for symbol in (".", ",", "?", '"'):
+    count = sample.count(symbol)
+    print(f"{symbol!r}: {count} occurrences")
+
+all_symbols = set(symbols)
+print(f"Distinct symbols: {len(all_symbols)}")`
   }
-].map(passage => ({ ...passage, kind: "python" }));
-
-const mixedPassages = pythonPassages.flatMap((passage, index) => (
-  index < englishPassages.length ? [englishPassages[index], passage] : [passage]
-));
-
-const passageGroups = { mixed: mixedPassages, english: englishPassages, python: pythonPassages };
-const lessonBaseUrl = "https://savanthchandra.github.io/python-daily/#concepts/ch";
+];

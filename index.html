@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f111a">
-  <meta name="description" content="Practice touch typing with animated finger guidance, English passages, and commented Python programs.">
-  <title>Home Row — Typing Practice</title>
-  <link rel="stylesheet" href="style.css?v=3">
-  <script defer src="passages.js"></script>
+  <meta name="theme-color" content="#11121a">
+  <meta name="description" content="Take a 60-second Python typing test with live speed metrics and an animated finger guide.">
+  <title>Home Row — Python Typing Test</title>
+  <link rel="stylesheet" href="style.css?v=5">
+  <script defer src="passages.js?v=5"></script>
   <script defer src="hand-art.js"></script>
   <script defer src="keyboard.js?v=4"></script>
-  <script defer src="app.js?v=3"></script>
+  <script defer src="app.js?v=5"></script>
 </head>
 <body>
   <header class="topbar">
@@ -20,52 +20,83 @@
     </div>
   </header>
   <main class="shell">
-    <div class="intro">
-      <h1>Typing practice<span>.</span></h1>
-      <div class="modes" role="group" aria-label="Passage type">
-        <button type="button" data-mode="mixed" aria-pressed="true">Mixed</button>
-        <button type="button" data-mode="english" aria-pressed="false">English</button>
-        <button type="button" data-mode="python" aria-pressed="false">Python</button>
+    <div class="heading">
+      <div>
+        <h1>Python typing test<span>.</span></h1>
+        <p>Type the code to start a 60-second run.</p>
+      </div>
+      <div class="actions">
+        <button type="button" id="restart" class="secondary">Reset</button>
+        <button type="button" id="next" class="primary">Next passage</button>
       </div>
     </div>
-    <section class="card exercise" aria-labelledby="passage-title">
-      <div class="exercise-header">
-        <div>
-          <span id="kind" class="kind">English</span>
-          <h2 id="passage-title">Morning at the market</h2>
-        </div>
-        <div class="exercise-actions">
-          <button type="button" id="restart" class="secondary">Restart</button>
-          <button type="button" id="next" class="primary">Next passage</button>
-        </div>
+
+    <section class="scoreboard" aria-label="Live typing metrics">
+      <div class="metric timer" id="timer-card">
+        <span id="time-label">Time left</span>
+        <output aria-live="off" id="time" aria-labelledby="time-label">1:00</output>
+        <progress id="time-fill" max="60" value="60" aria-label="Seconds remaining"></progress>
       </div>
-      <p id="instructions" class="visually-hidden">Focus this passage and type the highlighted character using your physical keyboard. The guide names the recommended finger. Use Tab to leave the passage.</p>
-      <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing passage" aria-describedby="instructions"></div>
-      <div class="exercise-footer">
-        <div class="progress-group">
-          <progress id="progress" max="1" value="0" aria-label="Passage progress"></progress>
-          <span id="progress-label">0%</span>
-        </div>
-        <span id="accuracy" class="accuracy">Accuracy —</span>
-        <a id="lesson-link" class="lesson-link" target="_blank" rel="noopener noreferrer" hidden>Open lesson in Python Daily</a>
+      <div class="metric">
+        <span id="wpm-label" title="Correct characters per minute divided by five">WPM</span>
+        <output aria-live="off" id="wpm" aria-labelledby="wpm-label">0</output>
+      </div>
+      <div class="metric">
+        <span id="cpm-label" title="All entered characters per minute, including mistakes">CPM</span>
+        <output aria-live="off" id="cpm" aria-labelledby="cpm-label">0</output>
+      </div>
+      <div class="metric">
+        <span id="accuracy-label" title="Percentage of entered characters that were correct on each attempt">Accuracy</span>
+        <output aria-live="off" id="accuracy" aria-labelledby="accuracy-label">—</output>
       </div>
     </section>
-    <section class="card guide" aria-labelledby="guide-title">
-      <div class="guide-header">
-        <div>
-          <h2 id="guide-title">Finger guide</h2>
-          <p id="finger-name" aria-live="polite" aria-atomic="true"></p>
+
+    <div class="workspace">
+      <section class="panel editor" aria-label="Python editor">
+        <div class="editor-header">
+          <div class="file-select">
+            <span class="file-icon" aria-hidden="true">py</span>
+            <label class="visually-hidden" for="passage-choice">Python passage</label>
+            <select id="passage-choice"></select>
+          </div>
+          <span id="line-count" class="line-count"></span>
         </div>
-        <div id="next-keys" class="next-keys" aria-label="Next key"></div>
-      </div>
-      <div class="keyboard-stage" aria-hidden="true">
-        <div class="keyboard-base"></div>
-        <div id="keyboard"></div>
-        <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
-        <canvas id="hands" width="1000" height="426"></canvas>
-      </div>
-      <p id="feedback" class="feedback" role="status">Type the highlighted character to begin.</p>
-    </section>
+        <p id="instructions" class="visually-hidden">Focus the editor and type the highlighted code. Enter inserts a line break. Tab inserts indentation at the start of a line. Backspace moves back one character. Press Escape to move focus out of the editor.</p>
+        <div class="editor-surface">
+          <div id="passage" class="passage" tabindex="0" role="region" aria-label="Typing editor" aria-describedby="instructions"></div>
+          <div id="results" class="results" hidden>
+            <div class="result-card">
+              <h2 id="result-title">Time is up</h2>
+              <p id="result-summary"></p>
+              <button type="button" id="retry" class="primary">Try again</button>
+            </div>
+          </div>
+        </div>
+        <div class="editor-footer">
+          <span id="cursor-position">Ln 1, Col 1</span>
+          <span id="progress" aria-label="Passage progress">0% typed</span>
+          <a id="lesson-link" target="_blank" rel="noopener noreferrer">Open lesson in Python Daily</a>
+        </div>
+      </section>
+
+      <section class="panel guide" aria-labelledby="guide-title">
+        <div class="guide-header">
+          <div>
+            <h2 id="guide-title">Finger guide</h2>
+            <p id="finger-name"></p>
+          </div>
+          <div id="next-keys" class="next-keys" role="group" aria-label="Next key"></div>
+        </div>
+        <div class="keyboard-stage" aria-hidden="true">
+          <div class="keyboard-base"></div>
+          <div id="keyboard"></div>
+          <img id="hand-illustration" src="hand-illustration.webp" alt="" hidden>
+          <canvas id="hands" width="1000" height="426"></canvas>
+        </div>
+        <p class="key-help"><kbd>Enter</kbd> Line break <kbd>Tab</kbd> Indent <kbd>Backspace</kbd> Correct</p>
+      </section>
+    </div>
+    <p id="session-status" class="visually-hidden" role="status" aria-atomic="true"></p>
     <noscript><p>Enable JavaScript to use the typing trainer.</p></noscript>
   </main>
 </body>
